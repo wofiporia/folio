@@ -2,6 +2,8 @@
 
 一个基于 Go + 文件系统的轻量博客，支持自动发布到 GitHub Pages。
 
+演示地址：https://wofiporia.github.io/folio/
+
 ## 分支策略
 
 - `main`：公开模板分支（不自动发布）
@@ -18,14 +20,18 @@
 1. 点击仓库右上角 `Use this template` 创建你自己的仓库。
 2. 在新仓库中创建并切换到 `blog` 分支（首次可从 `main` 创建）。
 3. 在仓库 `Settings -> Pages` 中将 `Source` 设为 `GitHub Actions`。
-4. 确保 `Actions` 已启用，向 `blog` push 一次（或手动触发 workflow）。
-5. 等待 `Deploy Pages` 成功后访问你的站点。
+4. 进入 `Settings -> Environments -> github-pages`，在 `Deployment branches` 中添加并允许 `blog` 分支（若界面有 `All branches` 也可直接选它）。
+5. 确保 `Actions` 已启用，向 `blog` push 一次（或手动触发 workflow）。
+6. 等待 `Deploy Pages` 成功后访问你的站点。
 
 ### 方案 B：Fork（可用）
 
 1. 点击 `Fork` 到你的账号。
 2. 在 fork 仓库创建 `blog` 分支。
-3. 启用 `Pages + GitHub Actions`，并向 `blog` 提交内容发布。
+3. 在 fork 仓库进入 `Settings -> Pages`，`Source` 选择 `GitHub Actions`。
+4. 进入 `Settings -> Environments -> github-pages`，在 `Deployment branches` 中添加并允许 `blog` 分支（若界面有 `All branches` 也可直接选它）。
+5. 确保 `Actions` 已启用，向 `blog` push 一次（或手动触发 workflow）。
+6. 等待 `Deploy Pages` 成功后访问你的站点。
 
 ## 配置项：`PAGES_BASE_PATH`
 
@@ -98,6 +104,11 @@ go run .
 ```bash
 go run ./cmd/build -out dist -base-path /your-repo-name
 ```
+
+## 常见问题
+
+- `go.sum` 缓存 warning：
+  - 本项目 workflow 已关闭 Go cache，不影响发布。
 
 ## 项目结构
 
