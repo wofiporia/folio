@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} - Folio</title>
+  <link rel="stylesheet" href="{{.BasePath}}/static/style.css">
+</head>
+<body>
+  <main class="container">
+    <header class="page-header">
+      <h1>标签</h1>
+      <nav class="top-nav">
+        <a href="{{.BasePath}}/">首页</a>
+        <a href="{{.BasePath}}/tags">标签</a>
+        <a href="{{.BasePath}}/archives">归档</a>
+      </nav>
+    </header>
+
+    <section class="chip-list">
+      <a class="chip {{if eq .CurrentTag ""}}active{{end}}" href="{{.BasePath}}/tags">全部</a>
+      {{range .Tags}}
+      <a class="chip {{if eq $.CurrentTag .Name}}active{{end}}" href="{{.URL}}">
+        {{.Name}} ({{.Count}})
+      </a>
+      {{end}}
+    </section>
+
+    <section class="post-list">
+      {{if .Posts}}
+      {{range .Posts}}
+      <a class="post-card-link" href="{{$.BasePath}}/post/{{.Slug}}">
+        <article class="post-card">
+          <h2>{{.Title}}</h2>
+          <p class="meta">{{.DateDisplay}}</p>
+          {{if .Tags}}
+          <p class="tags">
+            {{range .Tags}}<span>#{{.}}</span>{{end}}
+          </p>
+          {{end}}
+        </article>
+      </a>
+      {{end}}
+      {{else}}
+      <p>该标签下暂无文章。</p>
+      {{end}}
+    </section>
+  </main>
+</body>
+</html>

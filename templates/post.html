@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} - Folio</title>
+  <link rel="stylesheet" href="{{.BasePath}}/static/style.css">
+</head>
+<body>
+  <main class="container">
+    <nav class="back-nav">
+      <a href="{{.BasePath}}/">首页</a>
+      <a href="{{.BasePath}}/tags">标签</a>
+      <a href="{{.BasePath}}/archives">归档</a>
+    </nav>
+    <article class="post-detail">
+      <header>
+        <h1>{{.Post.Title}}</h1>
+        <p class="meta">{{.Post.DateDisplay}}</p>
+        {{if .Post.Tags}}
+        <p class="tags">
+          {{range .Post.Tags}}
+          <a class="tag-link" href="{{tagURL .}}">#{{.}}</a>
+          {{end}}
+        </p>
+        {{end}}
+      </header>
+      <section class="content">{{.Post.HTML}}</section>
+    </article>
+  </main>
+</body>
+</html>
