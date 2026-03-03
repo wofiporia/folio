@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -27,15 +29,34 @@ type Post struct {
 	HTML        template.HTML
 }
 
+type SearchDoc struct {
+	Title   string   `json:"title"`
+	Slug    string   `json:"slug"`
+	Date    string   `json:"date"`
+	Tags    []string `json:"tags"`
+	Content string   `json:"content"`
+}
+
+type SEO struct {
+	Description   string
+	CanonicalURL  string
+	OGType        string
+	OGURL         string
+	SiteName      string
+	PublishedTime string
+}
+
 type IndexData struct {
 	Title    string
 	BasePath string
+	SEO      SEO
 	Posts    []Post
 }
 
 type PostData struct {
 	Title    string
 	BasePath string
+	SEO      SEO
 	Post     Post
 }
 
@@ -48,6 +69,7 @@ type TagStat struct {
 type TagsData struct {
 	Title      string
 	BasePath   string
+	SEO        SEO
 	CurrentTag string
 	Tags       []TagStat
 	Posts      []Post
@@ -61,7 +83,14 @@ type ArchiveGroup struct {
 type ArchivesData struct {
 	Title    string
 	BasePath string
+	SEO      SEO
 	Groups   []ArchiveGroup
+}
+
+type SearchPageData struct {
+	Title    string
+	BasePath string
+	SEO      SEO
 }
 
 const (
@@ -75,6 +104,13 @@ var postsCache = struct {
 	expiresAt time.Time
 }{}
 
+var (
+	reLink   = regexp.MustCompile(`\[(.+?)\]\(([^)\s]+)\)`)
+	reBold   = regexp.MustCompile(`\*\*(.+?)\*\*`)
+	reItalic = regexp.MustCompile(`\*(.+?)\*`)
+	reCode   = regexp.MustCompile("`([^`]+)`")
+)
+
 func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
@@ -82,6 +118,8 @@ func main() {
 	mux.HandleFunc("/post/", postHandler)
 	mux.HandleFunc("/tags", tagsHandler)
 	mux.HandleFunc("/archives", archivesHandler)
+	mux.HandleFunc("/search", searchHandler)
+	mux.HandleFunc("/search-index.json", searchIndexHandler)
 
 	addr := ":8080"
 	log.Printf("folio listening on http://localhost%s", addr)
@@ -118,7 +156,12 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := IndexData{Title: "Folio", BasePath: "", Posts: posts}
+	data := IndexData{
+		Title:    "Folio",
+		BasePath: "",
+		SEO:      makeSEO("Folio", "一个基于 Go 和文件系统的轻量博客。", "/", "website", ""),
+		Posts:    posts,
+	}
 	if err := tpl.Execute(w, data); err != nil {
 		log.Printf("execute index template error: %v", err)
 	}
@@ -158,7 +201,12 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := PostData{Title: post.Title, BasePath: "", Post: post}
+	data := PostData{
+		Title:    post.Title,
+		BasePath: "",
+		SEO:      makeSEO(post.Title+" - Folio", excerpt(post.Markdown, 140), "/post/"+post.Slug, "article", post.Date.Format(time.RFC3339)),
+		Post:     post,
+	}
 	if err := tpl.Execute(w, data); err != nil {
 		log.Printf("execute post template error: %v", err)
 	}
@@ -203,6 +251,7 @@ func tagsHandler(w http.ResponseWriter, r *http.Request) {
 	data := TagsData{
 		Title:      title,
 		BasePath:   "",
+		SEO:        makeSEO(title+" - Folio", "按标签浏览文章内容。", "/tags", "website", ""),
 		CurrentTag: currentTag,
 		Tags:       tagStats,
 		Posts:      filtered,
@@ -235,10 +284,53 @@ func archivesHandler(w http.ResponseWriter, r *http.Request) {
 	data := ArchivesData{
 		Title:    "归档",
 		BasePath: "",
+		SEO:      makeSEO("归档 - Folio", "按月份浏览历史文章。", "/archives", "website", ""),
 		Groups:   buildArchiveGroups(posts),
 	}
 	if err := tpl.Execute(w, data); err != nil {
 		log.Printf("execute archives template error: %v", err)
+	}
+}
+
+func searchHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/search" {
+		http.NotFound(w, r)
+		return
+	}
+
+	tpl, err := parseTemplate("", "dynamic", "templates/search.html")
+	if err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+		log.Printf("parse search template error: %v", err)
+		return
+	}
+
+	data := SearchPageData{
+		Title:    "搜索",
+		BasePath: "",
+		SEO:      makeSEO("搜索 - Folio", "在博客中搜索标题、标签和正文。", "/search", "website", ""),
+	}
+	if err := tpl.Execute(w, data); err != nil {
+		log.Printf("execute search template error: %v", err)
+	}
+}
+
+func searchIndexHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/search-index.json" {
+		http.NotFound(w, r)
+		return
+	}
+
+	posts, err := loadPosts(postDir)
+	if err != nil {
+		http.Error(w, "failed to load posts", http.StatusInternalServerError)
+		log.Printf("loadPosts error: %v", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if err := json.NewEncoder(w).Encode(makeSearchDocs(posts)); err != nil {
+		log.Printf("encode search index error: %v", err)
 	}
 }
 
@@ -262,11 +354,44 @@ func withBase(basePath, path string) string {
 	return base + "/" + path
 }
 
+func cleanSiteURL() string {
+	site := strings.TrimSpace(os.Getenv("FOLIO_SITE_URL"))
+	return strings.TrimRight(site, "/")
+}
+
+func canonicalURL(path string) string {
+	if site := cleanSiteURL(); site != "" {
+		return site + path
+	}
+	return path
+}
+
+func makeSEO(title, desc, path, ogType, publishedTime string) SEO {
+	url := canonicalURL(path)
+	return SEO{
+		Description:   desc,
+		CanonicalURL:  url,
+		OGType:        ogType,
+		OGURL:         url,
+		SiteName:      "Folio",
+		PublishedTime: publishedTime,
+	}
+}
+
 func buildTagURL(basePath, tag, mode string) string {
 	if mode == "static" {
 		return withBase(basePath, "/tags/"+slugifyTag(tag)+"/")
 	}
 	return withBase(basePath, "/tags?tag="+url.QueryEscape(tag))
+}
+
+func excerpt(s string, n int) string {
+	text := normalizeSearchText(s)
+	runes := []rune(text)
+	if len(runes) <= n {
+		return text
+	}
+	return string(runes[:n]) + "..."
 }
 
 func loadPosts(dir string) ([]Post, error) {
@@ -407,6 +532,20 @@ func buildArchiveGroups(posts []Post) []ArchiveGroup {
 	return out
 }
 
+func makeSearchDocs(posts []Post) []SearchDoc {
+	docs := make([]SearchDoc, 0, len(posts))
+	for _, post := range posts {
+		docs = append(docs, SearchDoc{
+			Title:   post.Title,
+			Slug:    post.Slug,
+			Date:    post.DateDisplay,
+			Tags:    post.Tags,
+			Content: normalizeSearchText(post.Markdown),
+		})
+	}
+	return docs
+}
+
 func splitFrontMatter(content string) (map[string]string, string) {
 	content = strings.ReplaceAll(content, "\r\n", "\n")
 	lines := strings.Split(content, "\n")
@@ -497,13 +636,20 @@ func renderMarkdown(input string) string {
 	scanner := bufio.NewScanner(strings.NewReader(input))
 	var out strings.Builder
 	inCode := false
+	listTag := ""
 	var paragraph []string
 
+	closeList := func() {
+		if listTag != "" {
+			out.WriteString("</" + listTag + ">\n")
+			listTag = ""
+		}
+	}
 	flushParagraph := func() {
 		if len(paragraph) == 0 {
 			return
 		}
-		text := template.HTMLEscapeString(strings.Join(paragraph, " "))
+		text := formatInline(strings.Join(paragraph, " "))
 		out.WriteString("<p>" + text + "</p>\n")
 		paragraph = paragraph[:0]
 	}
@@ -514,6 +660,7 @@ func renderMarkdown(input string) string {
 
 		if strings.HasPrefix(trimmed, "```") {
 			flushParagraph()
+			closeList()
 			if inCode {
 				out.WriteString("</code></pre>\n")
 			} else {
@@ -531,11 +678,13 @@ func renderMarkdown(input string) string {
 
 		if trimmed == "" {
 			flushParagraph()
+			closeList()
 			continue
 		}
 
 		if strings.HasPrefix(trimmed, "#") {
 			flushParagraph()
+			closeList()
 			level := 0
 			for level < len(trimmed) && trimmed[level] == '#' {
 				level++
@@ -544,18 +693,73 @@ func renderMarkdown(input string) string {
 				level = 6
 			}
 			text := strings.TrimSpace(trimmed[level:])
-			out.WriteString(fmt.Sprintf("<h%d>%s</h%d>\n", level, template.HTMLEscapeString(text), level))
+			out.WriteString(fmt.Sprintf("<h%d>%s</h%d>\n", level, formatInline(text), level))
 			continue
 		}
 
+		if strings.HasPrefix(trimmed, ">") {
+			flushParagraph()
+			closeList()
+			text := strings.TrimSpace(strings.TrimPrefix(trimmed, ">"))
+			out.WriteString("<blockquote><p>" + formatInline(text) + "</p></blockquote>\n")
+			continue
+		}
+
+		if item, tag, ok := parseListItem(trimmed); ok {
+			flushParagraph()
+			if listTag != tag {
+				closeList()
+				listTag = tag
+				out.WriteString("<" + listTag + ">\n")
+			}
+			out.WriteString("<li>" + formatInline(item) + "</li>\n")
+			continue
+		}
+
+		closeList()
 		paragraph = append(paragraph, trimmed)
 	}
 
 	flushParagraph()
+	closeList()
 	if inCode {
 		out.WriteString("</code></pre>\n")
 	}
 	return out.String()
+}
+
+func parseListItem(line string) (item, tag string, ok bool) {
+	if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
+		return strings.TrimSpace(line[2:]), "ul", true
+	}
+
+	i := 0
+	for i < len(line) && line[i] >= '0' && line[i] <= '9' {
+		i++
+	}
+	if i > 0 && i+1 < len(line) && line[i] == '.' && line[i+1] == ' ' {
+		return strings.TrimSpace(line[i+2:]), "ol", true
+	}
+	return "", "", false
+}
+
+func formatInline(s string) string {
+	out := template.HTMLEscapeString(s)
+	out = reLink.ReplaceAllString(out, `<a href="$2">$1</a>`)
+	out = reBold.ReplaceAllString(out, `<strong>$1</strong>`)
+	out = reItalic.ReplaceAllString(out, `<em>$1</em>`)
+	out = reCode.ReplaceAllString(out, `<code>$1</code>`)
+	return out
+}
+
+func normalizeSearchText(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	replacer := strings.NewReplacer(
+		"#", " ", "*", " ", "`", " ", ">", " ", "[", " ", "]", " ",
+		"(", " ", ")", " ", "-", " ", "_", " ", "\n", " ", "\t", " ",
+	)
+	s = replacer.Replace(s)
+	return strings.Join(strings.Fields(s), " ")
 }
 
 func isValidSlug(slug string) bool {

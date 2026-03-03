@@ -1,7 +1,6 @@
 # Folio
 
-一个基于 Go + 文件系统的轻量博客，支持自动发布到 GitHub Pages。
-
+一个基于 Go + 文件系统的轻量博客，支持自动发布到 GitHub Pages。  
 演示地址：https://wofiporia.github.io/folio/
 
 ## 分支策略
@@ -81,7 +80,7 @@ draft: false
 | 模板 | `html/template` | 服务端模板渲染，默认安全转义 |
 | 内容 | Markdown + YAML Front Matter | 易写作、易版本管理 |
 | 存储 | 文件系统（`posts/*.md`） | 透明、易备份、易迁移 |
-| 前端 | 原生 HTML/CSS | 无构建链路 |
+| 前端 | 原生 HTML/CSS/JavaScript | 无构建链路 |
 
 ## 功能
 
@@ -89,7 +88,10 @@ draft: false
 - 文章页：`/post/{slug}`
 - 标签页：`/tags`
 - 归档页：`/archives`
+- 搜索页：`/search`（前端读取 `search-index.json`）
 - 草稿过滤：`draft: true` 不在前台展示
+- Markdown 渲染增强：标题、段落、代码块、列表、引用、链接、粗体、斜体
+- SEO 元信息：`description`、Open Graph、`canonical`、文章发布时间标签
 
 ## 本地开发（可选）
 
@@ -105,10 +107,6 @@ go run .
 go run ./cmd/build -out dist -base-path /your-repo-name
 ```
 
-## 常见问题
-
-- `go.sum` 缓存 warning：
-  - 本项目 workflow 已关闭 Go cache，不影响发布。
 
 ## 项目结构
 

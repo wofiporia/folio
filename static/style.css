@@ -138,12 +138,48 @@ body {
   margin: 10px 0;
 }
 
+.content ul,
+.content ol {
+  margin: 10px 0 10px 22px;
+}
+
+.content blockquote {
+  margin: 12px 0;
+  border-left: 4px solid #c7d2fe;
+  padding: 6px 12px;
+  color: #374151;
+  background: #f8faff;
+}
+
+.content :not(pre) > code {
+  background: #eef2ff;
+  color: #3730a3;
+  padding: 1px 5px;
+  border-radius: 6px;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 90%;
+}
+
 .content pre {
   background: #0f172a;
   color: #e2e8f0;
   padding: 12px;
   overflow-x: auto;
   border-radius: 8px;
+}
+
+.content pre code {
+  display: block;
+  white-space: pre;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+.content a {
+  color: var(--link);
 }
 
 .chip-list {
@@ -204,4 +240,20 @@ body {
 
 .archive-group li a:hover {
   text-decoration: underline;
+}
+
+.search-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.search-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 15px;
+  margin-bottom: 10px;
 }

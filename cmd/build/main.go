@@ -2,15 +2,16 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
 	"log"
-	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -27,15 +28,34 @@ type Post struct {
 	HTML        template.HTML
 }
 
+type SearchDoc struct {
+	Title   string   `json:"title"`
+	Slug    string   `json:"slug"`
+	Date    string   `json:"date"`
+	Tags    []string `json:"tags"`
+	Content string   `json:"content"`
+}
+
+type SEO struct {
+	Description   string
+	CanonicalURL  string
+	OGType        string
+	OGURL         string
+	SiteName      string
+	PublishedTime string
+}
+
 type IndexData struct {
 	Title    string
 	BasePath string
+	SEO      SEO
 	Posts    []Post
 }
 
 type PostData struct {
 	Title    string
 	BasePath string
+	SEO      SEO
 	Post     Post
 }
 
@@ -48,6 +68,7 @@ type TagStat struct {
 type TagsData struct {
 	Title      string
 	BasePath   string
+	SEO        SEO
 	CurrentTag string
 	Tags       []TagStat
 	Posts      []Post
@@ -61,12 +82,27 @@ type ArchiveGroup struct {
 type ArchivesData struct {
 	Title    string
 	BasePath string
+	SEO      SEO
 	Groups   []ArchiveGroup
 }
+
+type SearchPageData struct {
+	Title    string
+	BasePath string
+	SEO      SEO
+}
+
+var (
+	reLink   = regexp.MustCompile(`\[(.+?)\]\(([^)\s]+)\)`)
+	reBold   = regexp.MustCompile(`\*\*(.+?)\*\*`)
+	reItalic = regexp.MustCompile(`\*(.+?)\*`)
+	reCode   = regexp.MustCompile("`([^`]+)`")
+)
 
 func main() {
 	outDir := flag.String("out", "dist", "output directory")
 	basePath := flag.String("base-path", "", "base path prefix, e.g. /repo")
+	siteURL := flag.String("site-url", "", "absolute site url, e.g. https://example.com")
 	flag.Parse()
 
 	posts, err := loadPosts("posts")
@@ -89,9 +125,12 @@ func main() {
 		log.Fatal(err)
 	}
 
+	base := normalizeBasePath(*basePath)
+
 	if err := renderToFile(filepath.Join(*outDir, "index.html"), "templates/index.html", *basePath, tagURLs, IndexData{
 		Title:    "Folio",
-		BasePath: normalizeBasePath(*basePath),
+		BasePath: base,
+		SEO:      makeSEO(*siteURL, "Folio", "一个基于 Go 和文件系统的轻量博客。", withBase(*basePath, "/"), "website", ""),
 		Posts:    posts,
 	}); err != nil {
 		log.Fatal(err)
@@ -99,15 +138,29 @@ func main() {
 
 	if err := renderToFile(filepath.Join(*outDir, "archives", "index.html"), "templates/archives.html", *basePath, tagURLs, ArchivesData{
 		Title:    "归档",
-		BasePath: normalizeBasePath(*basePath),
+		BasePath: base,
+		SEO:      makeSEO(*siteURL, "归档 - Folio", "按月份浏览历史文章。", withBase(*basePath, "/archives"), "website", ""),
 		Groups:   buildArchiveGroups(posts),
 	}); err != nil {
 		log.Fatal(err)
 	}
 
+	if err := renderToFile(filepath.Join(*outDir, "search", "index.html"), "templates/search.html", *basePath, tagURLs, SearchPageData{
+		Title:    "搜索",
+		BasePath: base,
+		SEO:      makeSEO(*siteURL, "搜索 - Folio", "在博客中搜索标题、标签和正文。", withBase(*basePath, "/search"), "website", ""),
+	}); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := writeJSON(filepath.Join(*outDir, "search-index.json"), makeSearchDocs(posts)); err != nil {
+		log.Fatal(err)
+	}
+
 	if err := renderToFile(filepath.Join(*outDir, "tags", "index.html"), "templates/tags.html", *basePath, tagURLs, TagsData{
 		Title:      "标签",
-		BasePath:   normalizeBasePath(*basePath),
+		BasePath:   base,
+		SEO:        makeSEO(*siteURL, "标签 - Folio", "按标签浏览文章内容。", withBase(*basePath, "/tags"), "website", ""),
 		CurrentTag: "",
 		Tags:       tagStats,
 		Posts:      posts,
@@ -120,7 +173,8 @@ func main() {
 		slug := tagSlugs[stat.Name]
 		if err := renderToFile(filepath.Join(*outDir, "tags", slug, "index.html"), "templates/tags.html", *basePath, tagURLs, TagsData{
 			Title:      "标签: " + stat.Name,
-			BasePath:   normalizeBasePath(*basePath),
+			BasePath:   base,
+			SEO:        makeSEO(*siteURL, "标签: "+stat.Name+" - Folio", "按标签浏览文章内容。", withBase(*basePath, "/tags/"+slug+"/"), "website", ""),
 			CurrentTag: stat.Name,
 			Tags:       tagStats,
 			Posts:      filtered,
@@ -132,7 +186,8 @@ func main() {
 	for _, post := range posts {
 		if err := renderToFile(filepath.Join(*outDir, "post", post.Slug, "index.html"), "templates/post.html", *basePath, tagURLs, PostData{
 			Title:    post.Title,
-			BasePath: normalizeBasePath(*basePath),
+			BasePath: base,
+			SEO:      makeSEO(*siteURL, post.Title+" - Folio", excerpt(post.Markdown, 140), withBase(*basePath, "/post/"+post.Slug+"/"), "article", post.Date.Format(time.RFC3339)),
 			Post:     post,
 		}); err != nil {
 			log.Fatal(err)
@@ -140,6 +195,21 @@ func main() {
 	}
 
 	log.Printf("static site generated at %s (posts=%d, tags=%d)", *outDir, len(posts), len(tagStats))
+}
+
+func writeJSON(path string, v any) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	return enc.Encode(v)
 }
 
 func renderToFile(dstPath, templatePath, basePath string, tagURLs map[string]string, data any) error {
@@ -309,6 +379,20 @@ func buildArchiveGroups(posts []Post) []ArchiveGroup {
 	return out
 }
 
+func makeSearchDocs(posts []Post) []SearchDoc {
+	docs := make([]SearchDoc, 0, len(posts))
+	for _, post := range posts {
+		docs = append(docs, SearchDoc{
+			Title:   post.Title,
+			Slug:    post.Slug,
+			Date:    post.DateDisplay,
+			Tags:    post.Tags,
+			Content: normalizeSearchText(post.Markdown),
+		})
+	}
+	return docs
+}
+
 func splitFrontMatter(content string) (map[string]string, string) {
 	content = strings.ReplaceAll(content, "\r\n", "\n")
 	lines := strings.Split(content, "\n")
@@ -399,13 +483,20 @@ func renderMarkdown(input string) string {
 	scanner := bufio.NewScanner(strings.NewReader(input))
 	var out strings.Builder
 	inCode := false
+	listTag := ""
 	var paragraph []string
 
+	closeList := func() {
+		if listTag != "" {
+			out.WriteString("</" + listTag + ">\n")
+			listTag = ""
+		}
+	}
 	flushParagraph := func() {
 		if len(paragraph) == 0 {
 			return
 		}
-		text := template.HTMLEscapeString(strings.Join(paragraph, " "))
+		text := formatInline(strings.Join(paragraph, " "))
 		out.WriteString("<p>" + text + "</p>\n")
 		paragraph = paragraph[:0]
 	}
@@ -416,6 +507,7 @@ func renderMarkdown(input string) string {
 
 		if strings.HasPrefix(trimmed, "```") {
 			flushParagraph()
+			closeList()
 			if inCode {
 				out.WriteString("</code></pre>\n")
 			} else {
@@ -433,11 +525,13 @@ func renderMarkdown(input string) string {
 
 		if trimmed == "" {
 			flushParagraph()
+			closeList()
 			continue
 		}
 
 		if strings.HasPrefix(trimmed, "#") {
 			flushParagraph()
+			closeList()
 			level := 0
 			for level < len(trimmed) && trimmed[level] == '#' {
 				level++
@@ -446,18 +540,102 @@ func renderMarkdown(input string) string {
 				level = 6
 			}
 			text := strings.TrimSpace(trimmed[level:])
-			out.WriteString(fmt.Sprintf("<h%d>%s</h%d>\n", level, template.HTMLEscapeString(text), level))
+			out.WriteString(fmt.Sprintf("<h%d>%s</h%d>\n", level, formatInline(text), level))
 			continue
 		}
 
+		if strings.HasPrefix(trimmed, ">") {
+			flushParagraph()
+			closeList()
+			text := strings.TrimSpace(strings.TrimPrefix(trimmed, ">"))
+			out.WriteString("<blockquote><p>" + formatInline(text) + "</p></blockquote>\n")
+			continue
+		}
+
+		if item, tag, ok := parseListItem(trimmed); ok {
+			flushParagraph()
+			if listTag != tag {
+				closeList()
+				listTag = tag
+				out.WriteString("<" + listTag + ">\n")
+			}
+			out.WriteString("<li>" + formatInline(item) + "</li>\n")
+			continue
+		}
+
+		closeList()
 		paragraph = append(paragraph, trimmed)
 	}
 
 	flushParagraph()
+	closeList()
 	if inCode {
 		out.WriteString("</code></pre>\n")
 	}
 	return out.String()
+}
+
+func parseListItem(line string) (item, tag string, ok bool) {
+	if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
+		return strings.TrimSpace(line[2:]), "ul", true
+	}
+
+	i := 0
+	for i < len(line) && line[i] >= '0' && line[i] <= '9' {
+		i++
+	}
+	if i > 0 && i+1 < len(line) && line[i] == '.' && line[i+1] == ' ' {
+		return strings.TrimSpace(line[i+2:]), "ol", true
+	}
+	return "", "", false
+}
+
+func formatInline(s string) string {
+	out := template.HTMLEscapeString(s)
+	out = reLink.ReplaceAllString(out, `<a href="$2">$1</a>`)
+	out = reBold.ReplaceAllString(out, `<strong>$1</strong>`)
+	out = reItalic.ReplaceAllString(out, `<em>$1</em>`)
+	out = reCode.ReplaceAllString(out, `<code>$1</code>`)
+	return out
+}
+
+func normalizeSearchText(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	replacer := strings.NewReplacer(
+		"#", " ", "*", " ", "`", " ", ">", " ", "[", " ", "]", " ",
+		"(", " ", ")", " ", "-", " ", "_", " ", "\n", " ", "\t", " ",
+	)
+	s = replacer.Replace(s)
+	return strings.Join(strings.Fields(s), " ")
+}
+
+func canonicalURL(siteURL, path string) string {
+	site := strings.TrimRight(strings.TrimSpace(siteURL), "/")
+	if site == "" {
+		return path
+	}
+	return site + path
+}
+
+func makeSEO(siteURL, title, desc, path, ogType, publishedTime string) SEO {
+	url := canonicalURL(siteURL, path)
+	return SEO{
+		Description:   desc,
+		CanonicalURL:  url,
+		OGType:        ogType,
+		OGURL:         url,
+		SiteName:      "Folio",
+		PublishedTime: publishedTime,
+	}
+}
+
+func excerpt(s string, n int) string {
+	text := normalizeSearchText(s)
+	runes := []rune(text)
+	if len(runes) <= n {
+		return text
+	}
+	return string(runes[:n]) + "..."
 }
 
 func withBase(basePath, path string) string {
@@ -541,8 +719,4 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return out.Close()
-}
-
-func buildTagURL(basePath, tag string) string {
-	return withBase(basePath, "/tags/"+url.QueryEscape(tag)+"/")
 }
