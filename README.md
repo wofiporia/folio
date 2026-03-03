@@ -1,6 +1,7 @@
 # Folio
 
-一个基于 Go + 文件系统的轻量博客，支持自动发布到 GitHub Pages。
+一个基于 Go + 文件系统的轻量博客，支持自动发布到 GitHub Pages。  
+演示地址：https://wofiporia.github.io/folio/
 
 ## 分支策略
 
@@ -18,14 +19,18 @@
 1. 点击仓库右上角 `Use this template` 创建你自己的仓库。
 2. 在新仓库中创建并切换到 `blog` 分支（首次可从 `main` 创建）。
 3. 在仓库 `Settings -> Pages` 中将 `Source` 设为 `GitHub Actions`。
-4. 确保 `Actions` 已启用，向 `blog` push 一次（或手动触发 workflow）。
-5. 等待 `Deploy Pages` 成功后访问你的站点。
+4. 进入 `Settings -> Environments -> github-pages`，在 `Deployment branches` 中添加并允许 `blog` 分支（若界面有 `All branches` 也可直接选它）。
+5. 确保 `Actions` 已启用，向 `blog` push 一次（或手动触发 workflow）。
+6. 等待 `Deploy Pages` 成功后访问你的站点。
 
 ### 方案 B：Fork（可用）
 
 1. 点击 `Fork` 到你的账号。
 2. 在 fork 仓库创建 `blog` 分支。
-3. 启用 `Pages + GitHub Actions`，并向 `blog` 提交内容发布。
+3. 在 fork 仓库进入 `Settings -> Pages`，`Source` 选择 `GitHub Actions`。
+4. 进入 `Settings -> Environments -> github-pages`，在 `Deployment branches` 中添加并允许 `blog` 分支（若界面有 `All branches` 也可直接选它）。
+5. 确保 `Actions` 已启用，向 `blog` push 一次（或手动触发 workflow）。
+6. 等待 `Deploy Pages` 成功后访问你的站点。
 
 ## 配置项：`PAGES_BASE_PATH`
 
@@ -75,7 +80,7 @@ draft: false
 | 模板 | `html/template` | 服务端模板渲染，默认安全转义 |
 | 内容 | Markdown + YAML Front Matter | 易写作、易版本管理 |
 | 存储 | 文件系统（`posts/*.md`） | 透明、易备份、易迁移 |
-| 前端 | 原生 HTML/CSS | 无构建链路 |
+| 前端 | 原生 HTML/CSS/JavaScript | 无构建链路 |
 
 ## 功能
 
@@ -83,7 +88,10 @@ draft: false
 - 文章页：`/post/{slug}`
 - 标签页：`/tags`
 - 归档页：`/archives`
+- 搜索页：`/search`（前端读取 `search-index.json`）
 - 草稿过滤：`draft: true` 不在前台展示
+- Markdown 渲染增强：标题、段落、代码块、列表、引用、链接、粗体、斜体
+- SEO 元信息：`description`、Open Graph、`canonical`、文章发布时间标签
 
 ## 本地开发（可选）
 
@@ -98,6 +106,7 @@ go run .
 ```bash
 go run ./cmd/build -out dist -base-path /your-repo-name
 ```
+
 
 ## 项目结构
 
