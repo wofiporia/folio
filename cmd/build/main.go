@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -20,6 +22,7 @@ import (
 type Post struct {
 	Slug        string
 	Title       string
+	Author      string
 	Date        time.Time
 	DateDisplay string
 	Tags        []string
@@ -41,15 +44,27 @@ type SEO struct {
 	CanonicalURL  string
 	OGType        string
 	OGURL         string
+	OGImage       string
 	SiteName      string
 	PublishedTime string
 }
 
+type AppConfig struct {
+	SiteTitle          string `json:"site_title"`
+	SiteDescription    string `json:"site_description"`
+	SiteURL            string `json:"site_url"`
+	AuthorName         string `json:"author_name"`
+	DefaultDescription string `json:"default_description"`
+	DefaultOGImage     string `json:"default_og_image"`
+	DefaultOGType      string `json:"default_og_type"`
+}
+
 type IndexData struct {
-	Title    string
-	BasePath string
-	SEO      SEO
-	Posts    []Post
+	Title           string
+	BasePath        string
+	SiteDescription string
+	SEO             SEO
+	Posts           []Post
 }
 
 type PostData struct {
@@ -99,11 +114,23 @@ var (
 	reCode   = regexp.MustCompile("`([^`]+)`")
 )
 
+var buildConfig = defaultConfig()
+
 func main() {
 	outDir := flag.String("out", "dist", "output directory")
 	basePath := flag.String("base-path", "", "base path prefix, e.g. /repo")
+	configPath := flag.String("config", "config.json", "config file path")
 	siteURL := flag.String("site-url", "", "absolute site url, e.g. https://example.com")
 	flag.Parse()
+
+	cfg, err := loadConfig(*configPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if strings.TrimSpace(*siteURL) != "" {
+		cfg.SiteURL = strings.TrimRight(strings.TrimSpace(*siteURL), "/")
+	}
+	buildConfig = cfg
 
 	posts, err := loadPosts("posts")
 	if err != nil {
@@ -128,10 +155,11 @@ func main() {
 	base := normalizeBasePath(*basePath)
 
 	if err := renderToFile(filepath.Join(*outDir, "index.html"), "templates/index.html", *basePath, tagURLs, IndexData{
-		Title:    "Folio",
-		BasePath: base,
-		SEO:      makeSEO(*siteURL, "Folio", "一个基于 Go 和文件系统的轻量博客。", withBase(*basePath, "/"), "website", ""),
-		Posts:    posts,
+		Title:           cfg.SiteTitle,
+		BasePath:        base,
+		SiteDescription: cfg.SiteDescription,
+		SEO:             makeSEO(cfg, cfg.SiteTitle, cfg.SiteDescription, withBase(*basePath, "/"), "website", ""),
+		Posts:           posts,
 	}); err != nil {
 		log.Fatal(err)
 	}
@@ -139,7 +167,7 @@ func main() {
 	if err := renderToFile(filepath.Join(*outDir, "archives", "index.html"), "templates/archives.html", *basePath, tagURLs, ArchivesData{
 		Title:    "归档",
 		BasePath: base,
-		SEO:      makeSEO(*siteURL, "归档 - Folio", "按月份浏览历史文章。", withBase(*basePath, "/archives"), "website", ""),
+		SEO:      makeSEO(cfg, "归档 - "+cfg.SiteTitle, "按月份浏览历史文章。", withBase(*basePath, "/archives"), "website", ""),
 		Groups:   buildArchiveGroups(posts),
 	}); err != nil {
 		log.Fatal(err)
@@ -148,7 +176,7 @@ func main() {
 	if err := renderToFile(filepath.Join(*outDir, "search", "index.html"), "templates/search.html", *basePath, tagURLs, SearchPageData{
 		Title:    "搜索",
 		BasePath: base,
-		SEO:      makeSEO(*siteURL, "搜索 - Folio", "在博客中搜索标题、标签和正文。", withBase(*basePath, "/search"), "website", ""),
+		SEO:      makeSEO(cfg, "搜索 - "+cfg.SiteTitle, "在博客中搜索标题、标签和正文。", withBase(*basePath, "/search"), "website", ""),
 	}); err != nil {
 		log.Fatal(err)
 	}
@@ -160,7 +188,7 @@ func main() {
 	if err := renderToFile(filepath.Join(*outDir, "tags", "index.html"), "templates/tags.html", *basePath, tagURLs, TagsData{
 		Title:      "标签",
 		BasePath:   base,
-		SEO:        makeSEO(*siteURL, "标签 - Folio", "按标签浏览文章内容。", withBase(*basePath, "/tags"), "website", ""),
+		SEO:        makeSEO(cfg, "标签 - "+cfg.SiteTitle, "按标签浏览文章内容。", withBase(*basePath, "/tags"), "website", ""),
 		CurrentTag: "",
 		Tags:       tagStats,
 		Posts:      posts,
@@ -174,7 +202,7 @@ func main() {
 		if err := renderToFile(filepath.Join(*outDir, "tags", slug, "index.html"), "templates/tags.html", *basePath, tagURLs, TagsData{
 			Title:      "标签: " + stat.Name,
 			BasePath:   base,
-			SEO:        makeSEO(*siteURL, "标签: "+stat.Name+" - Folio", "按标签浏览文章内容。", withBase(*basePath, "/tags/"+slug+"/"), "website", ""),
+			SEO:        makeSEO(cfg, "标签: "+stat.Name+" - "+cfg.SiteTitle, "按标签浏览文章内容。", withBase(*basePath, "/tags/"+slug+"/"), "website", ""),
 			CurrentTag: stat.Name,
 			Tags:       tagStats,
 			Posts:      filtered,
@@ -187,7 +215,7 @@ func main() {
 		if err := renderToFile(filepath.Join(*outDir, "post", post.Slug, "index.html"), "templates/post.html", *basePath, tagURLs, PostData{
 			Title:    post.Title,
 			BasePath: base,
-			SEO:      makeSEO(*siteURL, post.Title+" - Folio", excerpt(post.Markdown, 140), withBase(*basePath, "/post/"+post.Slug+"/"), "article", post.Date.Format(time.RFC3339)),
+			SEO:      makeSEO(cfg, post.Title+" - "+cfg.SiteTitle, excerpt(post.Markdown, 140), withBase(*basePath, "/post/"+post.Slug+"/"), "article", post.Date.Format(time.RFC3339)),
 			Post:     post,
 		}); err != nil {
 			log.Fatal(err)
@@ -282,6 +310,7 @@ func loadPost(path string) (Post, error) {
 	post := Post{
 		Slug:     slug,
 		Title:    fallbackTitle(fm["title"], slug),
+		Author:   fallbackAuthor(fm["author"], buildConfig.AuthorName),
 		Tags:     parseList(fm["tags"]),
 		Draft:    strings.EqualFold(strings.TrimSpace(fm["draft"]), "true"),
 		Markdown: strings.TrimSpace(body),
@@ -609,6 +638,58 @@ func normalizeSearchText(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }
 
+func defaultConfig() AppConfig {
+	return AppConfig{
+		SiteTitle:          "Folio",
+		SiteDescription:    "一个基于 Go 和文件系统的轻量博客。",
+		SiteURL:            "",
+		AuthorName:         "Anonymous",
+		DefaultDescription: "一个基于 Go 和文件系统的轻量博客。",
+		DefaultOGImage:     "",
+		DefaultOGType:      "website",
+	}
+}
+
+func (c *AppConfig) normalize() {
+	d := defaultConfig()
+	if strings.TrimSpace(c.SiteTitle) == "" {
+		c.SiteTitle = d.SiteTitle
+	}
+	if strings.TrimSpace(c.SiteDescription) == "" {
+		c.SiteDescription = d.SiteDescription
+	}
+	c.SiteURL = strings.TrimRight(strings.TrimSpace(c.SiteURL), "/")
+	if strings.TrimSpace(c.AuthorName) == "" {
+		c.AuthorName = d.AuthorName
+	}
+	if strings.TrimSpace(c.DefaultDescription) == "" {
+		c.DefaultDescription = c.SiteDescription
+	}
+	if strings.TrimSpace(c.DefaultOGType) == "" {
+		c.DefaultOGType = d.DefaultOGType
+	}
+}
+
+func loadConfig(path string) (AppConfig, error) {
+	cfg := defaultConfig()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return cfg, nil
+		}
+		return cfg, err
+	}
+	if len(strings.TrimSpace(string(b))) == 0 {
+		return cfg, nil
+	}
+	b = bytes.TrimPrefix(b, []byte{0xEF, 0xBB, 0xBF})
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		return cfg, err
+	}
+	cfg.normalize()
+	return cfg, nil
+}
+
 func canonicalURL(siteURL, path string) string {
 	site := strings.TrimRight(strings.TrimSpace(siteURL), "/")
 	if site == "" {
@@ -617,14 +698,23 @@ func canonicalURL(siteURL, path string) string {
 	return site + path
 }
 
-func makeSEO(siteURL, title, desc, path, ogType, publishedTime string) SEO {
-	url := canonicalURL(siteURL, path)
+func makeSEO(cfg AppConfig, title, desc, path, ogType, publishedTime string) SEO {
+	desc = strings.TrimSpace(desc)
+	if desc == "" {
+		desc = cfg.DefaultDescription
+	}
+	ogType = strings.TrimSpace(ogType)
+	if ogType == "" {
+		ogType = cfg.DefaultOGType
+	}
+	url := canonicalURL(cfg.SiteURL, path)
 	return SEO{
 		Description:   desc,
 		CanonicalURL:  url,
 		OGType:        ogType,
 		OGURL:         url,
-		SiteName:      "Folio",
+		OGImage:       cfg.DefaultOGImage,
+		SiteName:      cfg.SiteTitle,
 		PublishedTime: publishedTime,
 	}
 }
@@ -636,6 +726,14 @@ func excerpt(s string, n int) string {
 		return text
 	}
 	return string(runes[:n]) + "..."
+}
+
+func fallbackAuthor(author, fallback string) string {
+	author = strings.TrimSpace(author)
+	if author != "" {
+		return author
+	}
+	return strings.TrimSpace(fallback)
 }
 
 func withBase(basePath, path string) string {

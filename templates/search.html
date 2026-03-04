@@ -3,14 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{.Title}} - Folio</title>
+  <title>{{.Title}} - {{.SEO.SiteName}}</title>
   <meta name="description" content="{{.SEO.Description}}">
   <link rel="canonical" href="{{.SEO.CanonicalURL}}">
   <meta property="og:type" content="{{.SEO.OGType}}">
   <meta property="og:site_name" content="{{.SEO.SiteName}}">
-  <meta property="og:title" content="{{.Title}} - Folio">
+  <meta property="og:title" content="{{.Title}} - {{.SEO.SiteName}}">
   <meta property="og:description" content="{{.SEO.Description}}">
   <meta property="og:url" content="{{.SEO.OGURL}}">
+  {{if .SEO.OGImage}}<meta property="og:image" content="{{.SEO.OGImage}}">{{end}}
+  <link rel="icon" type="image/png" href="{{.BasePath}}/static/favicon.png">
   <link rel="stylesheet" href="{{.BasePath}}/static/style.css">
 </head>
 <body>

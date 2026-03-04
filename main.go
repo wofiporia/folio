@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 type Post struct {
 	Slug        string
 	Title       string
+	Author      string
 	Date        time.Time
 	DateDisplay string
 	Tags        []string
@@ -42,15 +44,27 @@ type SEO struct {
 	CanonicalURL  string
 	OGType        string
 	OGURL         string
+	OGImage       string
 	SiteName      string
 	PublishedTime string
 }
 
+type AppConfig struct {
+	SiteTitle          string `json:"site_title"`
+	SiteDescription    string `json:"site_description"`
+	SiteURL            string `json:"site_url"`
+	AuthorName         string `json:"author_name"`
+	DefaultDescription string `json:"default_description"`
+	DefaultOGImage     string `json:"default_og_image"`
+	DefaultOGType      string `json:"default_og_type"`
+}
+
 type IndexData struct {
-	Title    string
-	BasePath string
-	SEO      SEO
-	Posts    []Post
+	Title           string
+	BasePath        string
+	SiteDescription string
+	SEO             SEO
+	Posts           []Post
 }
 
 type PostData struct {
@@ -104,6 +118,8 @@ var postsCache = struct {
 	expiresAt time.Time
 }{}
 
+var appConfig = defaultConfig()
+
 var (
 	reLink   = regexp.MustCompile(`\[(.+?)\]\(([^)\s]+)\)`)
 	reBold   = regexp.MustCompile(`\*\*(.+?)\*\*`)
@@ -111,7 +127,65 @@ var (
 	reCode   = regexp.MustCompile("`([^`]+)`")
 )
 
+func defaultConfig() AppConfig {
+	return AppConfig{
+		SiteTitle:          "Folio",
+		SiteDescription:    "一个基于 Go 和文件系统的轻量博客。",
+		SiteURL:            "",
+		AuthorName:         "Anonymous",
+		DefaultDescription: "一个基于 Go 和文件系统的轻量博客。",
+		DefaultOGImage:     "",
+		DefaultOGType:      "website",
+	}
+}
+
+func (c *AppConfig) normalize() {
+	d := defaultConfig()
+	if strings.TrimSpace(c.SiteTitle) == "" {
+		c.SiteTitle = d.SiteTitle
+	}
+	if strings.TrimSpace(c.SiteDescription) == "" {
+		c.SiteDescription = d.SiteDescription
+	}
+	c.SiteURL = strings.TrimRight(strings.TrimSpace(c.SiteURL), "/")
+	if strings.TrimSpace(c.AuthorName) == "" {
+		c.AuthorName = d.AuthorName
+	}
+	if strings.TrimSpace(c.DefaultDescription) == "" {
+		c.DefaultDescription = c.SiteDescription
+	}
+	if strings.TrimSpace(c.DefaultOGType) == "" {
+		c.DefaultOGType = d.DefaultOGType
+	}
+}
+
+func loadConfig(path string) (AppConfig, error) {
+	cfg := defaultConfig()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return cfg, nil
+		}
+		return cfg, err
+	}
+	if len(strings.TrimSpace(string(b))) == 0 {
+		return cfg, nil
+	}
+	b = bytes.TrimPrefix(b, []byte{0xEF, 0xBB, 0xBF})
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		return cfg, err
+	}
+	cfg.normalize()
+	return cfg, nil
+}
+
 func main() {
+	cfg, err := loadConfig("config.json")
+	if err != nil {
+		log.Fatalf("load config error: %v", err)
+	}
+	appConfig = cfg
+
 	mux := http.NewServeMux()
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 	mux.HandleFunc("/", indexHandler)
@@ -136,6 +210,13 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func renderHTML(w http.ResponseWriter, tpl *template.Template, data any, page string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tpl.Execute(w, data); err != nil {
+		log.Printf("execute %s template error: %v", page, err)
+	}
+}
+
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
@@ -157,14 +238,13 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := IndexData{
-		Title:    "Folio",
-		BasePath: "",
-		SEO:      makeSEO("Folio", "一个基于 Go 和文件系统的轻量博客。", "/", "website", ""),
-		Posts:    posts,
+		Title:           appConfig.SiteTitle,
+		BasePath:        "",
+		SiteDescription: appConfig.SiteDescription,
+		SEO:             makeSEO(appConfig.SiteTitle, appConfig.SiteDescription, "/", "website", ""),
+		Posts:           posts,
 	}
-	if err := tpl.Execute(w, data); err != nil {
-		log.Printf("execute index template error: %v", err)
-	}
+	renderHTML(w, tpl, data, "index")
 }
 
 func postHandler(w http.ResponseWriter, r *http.Request) {
@@ -204,12 +284,10 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 	data := PostData{
 		Title:    post.Title,
 		BasePath: "",
-		SEO:      makeSEO(post.Title+" - Folio", excerpt(post.Markdown, 140), "/post/"+post.Slug, "article", post.Date.Format(time.RFC3339)),
+		SEO:      makeSEO(post.Title+" - "+appConfig.SiteTitle, excerpt(post.Markdown, 140), "/post/"+post.Slug, "article", post.Date.Format(time.RFC3339)),
 		Post:     post,
 	}
-	if err := tpl.Execute(w, data); err != nil {
-		log.Printf("execute post template error: %v", err)
-	}
+	renderHTML(w, tpl, data, "post")
 }
 
 func tagsHandler(w http.ResponseWriter, r *http.Request) {
@@ -251,14 +329,12 @@ func tagsHandler(w http.ResponseWriter, r *http.Request) {
 	data := TagsData{
 		Title:      title,
 		BasePath:   "",
-		SEO:        makeSEO(title+" - Folio", "按标签浏览文章内容。", "/tags", "website", ""),
+		SEO:        makeSEO(title+" - "+appConfig.SiteTitle, "按标签浏览文章内容。", "/tags", "website", ""),
 		CurrentTag: currentTag,
 		Tags:       tagStats,
 		Posts:      filtered,
 	}
-	if err := tpl.Execute(w, data); err != nil {
-		log.Printf("execute tags template error: %v", err)
-	}
+	renderHTML(w, tpl, data, "tags")
 }
 
 func archivesHandler(w http.ResponseWriter, r *http.Request) {
@@ -284,12 +360,10 @@ func archivesHandler(w http.ResponseWriter, r *http.Request) {
 	data := ArchivesData{
 		Title:    "归档",
 		BasePath: "",
-		SEO:      makeSEO("归档 - Folio", "按月份浏览历史文章。", "/archives", "website", ""),
+		SEO:      makeSEO("归档 - "+appConfig.SiteTitle, "按月份浏览历史文章。", "/archives", "website", ""),
 		Groups:   buildArchiveGroups(posts),
 	}
-	if err := tpl.Execute(w, data); err != nil {
-		log.Printf("execute archives template error: %v", err)
-	}
+	renderHTML(w, tpl, data, "archives")
 }
 
 func searchHandler(w http.ResponseWriter, r *http.Request) {
@@ -308,11 +382,9 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	data := SearchPageData{
 		Title:    "搜索",
 		BasePath: "",
-		SEO:      makeSEO("搜索 - Folio", "在博客中搜索标题、标签和正文。", "/search", "website", ""),
+		SEO:      makeSEO("搜索 - "+appConfig.SiteTitle, "在博客中搜索标题、标签和正文。", "/search", "website", ""),
 	}
-	if err := tpl.Execute(w, data); err != nil {
-		log.Printf("execute search template error: %v", err)
-	}
+	renderHTML(w, tpl, data, "search")
 }
 
 func searchIndexHandler(w http.ResponseWriter, r *http.Request) {
@@ -354,26 +426,30 @@ func withBase(basePath, path string) string {
 	return base + "/" + path
 }
 
-func cleanSiteURL() string {
-	site := strings.TrimSpace(os.Getenv("FOLIO_SITE_URL"))
-	return strings.TrimRight(site, "/")
-}
-
 func canonicalURL(path string) string {
-	if site := cleanSiteURL(); site != "" {
+	if site := strings.TrimRight(strings.TrimSpace(appConfig.SiteURL), "/"); site != "" {
 		return site + path
 	}
 	return path
 }
 
 func makeSEO(title, desc, path, ogType, publishedTime string) SEO {
+	desc = strings.TrimSpace(desc)
+	if desc == "" {
+		desc = appConfig.DefaultDescription
+	}
+	ogType = strings.TrimSpace(ogType)
+	if ogType == "" {
+		ogType = appConfig.DefaultOGType
+	}
 	url := canonicalURL(path)
 	return SEO{
 		Description:   desc,
 		CanonicalURL:  url,
 		OGType:        ogType,
 		OGURL:         url,
-		SiteName:      "Folio",
+		OGImage:       appConfig.DefaultOGImage,
+		SiteName:      appConfig.SiteTitle,
 		PublishedTime: publishedTime,
 	}
 }
@@ -456,6 +532,7 @@ func loadPost(path string) (Post, error) {
 	post := Post{
 		Slug:     slug,
 		Title:    fallbackTitle(fm["title"], slug),
+		Author:   fallbackAuthor(fm["author"], appConfig.AuthorName),
 		Tags:     parseList(fm["tags"]),
 		Draft:    strings.EqualFold(strings.TrimSpace(fm["draft"]), "true"),
 		Markdown: strings.TrimSpace(body),
@@ -626,6 +703,14 @@ func fallbackTitle(title, slug string) string {
 		parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
 	}
 	return strings.Join(parts, " ")
+}
+
+func fallbackAuthor(author, fallback string) string {
+	author = strings.TrimSpace(author)
+	if author != "" {
+		return author
+	}
+	return strings.TrimSpace(fallback)
 }
 
 func renderMarkdown(input string) string {

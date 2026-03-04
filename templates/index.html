@@ -11,13 +11,15 @@
   <meta property="og:title" content="{{.Title}}">
   <meta property="og:description" content="{{.SEO.Description}}">
   <meta property="og:url" content="{{.SEO.OGURL}}">
+  {{if .SEO.OGImage}}<meta property="og:image" content="{{.SEO.OGImage}}">{{end}}
+  <link rel="icon" type="image/png" href="{{.BasePath}}/static/favicon.png">
   <link rel="stylesheet" href="{{.BasePath}}/static/style.css">
 </head>
 <body>
   <main class="container">
     <header class="page-header">
-      <h1>Folio</h1>
-      <p>一个基于 Go + 文件系统的轻量博客</p>
+      <h1>{{.SEO.SiteName}}</h1>
+      <p>{{.SiteDescription}}</p>
       <nav class="top-nav">
         <a href="{{.BasePath}}/">首页</a>
         <a href="{{.BasePath}}/tags">标签</a>
@@ -32,7 +34,7 @@
       <a class="post-card-link" href="{{$.BasePath}}/post/{{.Slug}}">
         <article class="post-card">
           <h2>{{.Title}}</h2>
-          <p class="meta">{{.DateDisplay}}</p>
+          <p class="meta">{{.DateDisplay}}{{if .Author}} · {{.Author}}{{end}}</p>
           {{if .Tags}}
           <p class="tags">
             {{range .Tags}}<span>#{{.}}</span>{{end}}

@@ -1,4 +1,4 @@
-# Folio
+﻿# Folio
 
 一个基于 Go + 文件系统的轻量博客，支持自动发布到 GitHub Pages。  
 演示地址：https://wofiporia.github.io/folio/
@@ -7,8 +7,6 @@
 
 - `main`：公开模板分支（不自动发布）
 - `blog`：个人内容分支（自动发布到 GitHub Pages）
-
-当前工作流仅监听 `blog`，避免 `main` 覆盖线上页面。
 
 ## 使用方式
 
@@ -19,8 +17,8 @@
 1. 点击仓库右上角 `Use this template` 创建你自己的仓库。
 2. 在新仓库中创建并切换到 `blog` 分支（首次可从 `main` 创建）。
 3. 在仓库 `Settings -> Pages` 中将 `Source` 设为 `GitHub Actions`。
-4. 进入 `Settings -> Environments -> github-pages`，在 `Deployment branches` 中添加并允许 `blog` 分支（若界面有 `All branches` 也可直接选它）。
-5. 确保 `Actions` 已启用，向 `blog` push 一次（或手动触发 workflow）。
+4. 进入 `Settings -> Environments -> github-pages`，在 `Deployment branches` 中添加并允许 `blog` 分支。
+5. 向 `blog` push 一次（或手动触发 workflow）。
 6. 等待 `Deploy Pages` 成功后访问你的站点。
 
 ### 方案 B：Fork（可用）
@@ -28,8 +26,8 @@
 1. 点击 `Fork` 到你的账号。
 2. 在 fork 仓库创建 `blog` 分支。
 3. 在 fork 仓库进入 `Settings -> Pages`，`Source` 选择 `GitHub Actions`。
-4. 进入 `Settings -> Environments -> github-pages`，在 `Deployment branches` 中添加并允许 `blog` 分支（若界面有 `All branches` 也可直接选它）。
-5. 确保 `Actions` 已启用，向 `blog` push 一次（或手动触发 workflow）。
+4. 进入 `Settings -> Environments -> github-pages`，在 `Deployment branches` 中添加并允许 `blog` 分支。
+5. 向 `blog` push 一次（或手动触发 workflow）。
 6. 等待 `Deploy Pages` 成功后访问你的站点。
 
 ## 配置项：`PAGES_BASE_PATH`
@@ -47,6 +45,37 @@
 1. `PAGES_BASE_PATH`（若设置）
 2. 自动回退 `/<repo-name>`
 
+## 站点自定义配置（`config.json`）
+
+### 示例
+
+```jsonc
+{
+  "site_title": "Folio", // 站点名称（用于页面标题和 SEO site_name）
+  "site_description": "一个基于 Go 和文件系统的轻量博客。", // 站点简介（默认用于 SEO 描述）
+  "site_url": "https://wofiporia.github.io/folio", // 站点完整 URL（用于 canonical/og:url）
+  "author_name": "Wofiporia", // 默认作者名（文章未写 author 时回退）
+  "default_description": "这里什么都没有写", // SEO 默认描述（页面/文章无描述时使用）
+  "default_og_image": "", // Open Graph 默认图片 URL（可留空）
+  "default_og_type": "website" // Open Graph 默认类型（如 website / article）
+}
+```
+
+### 字段说明
+
+- `site_title`：站点名称。
+- `site_description`：站点描述，会显示在首页标题下方，同时作为站点级 SEO 描述默认值。
+- `site_url`：站点完整地址（必须带协议），用于生成绝对 `canonical` 与 `og:url`。
+- `author_name`：默认作者名，文章 Front Matter 未设置 `author` 时使用。
+- `default_description`：全站 SEO 默认描述，页面没有更具体描述时使用。
+- `default_og_image`：全站分享默认封面图 URL（可选）。
+- `default_og_type`：Open Graph 默认类型，常见 `website`。
+
+### 图标自定义
+
+- 直接替换 `static/favicon.png` 即可。
+- 文件名保持 `favicon.png`，页面会自动加载该图标。
+
 ## 内容发布方式
 
 所有内容来自 `posts/*.md`，通过 Git 提交发布：
@@ -56,31 +85,19 @@
 3. 提交并 push 到 `blog`
 4. GitHub Actions 自动构建并发布
 
-Front Matter 示例：
+文章 Front Matter 示例：
 
 ```markdown
 ---
 title: "我的第一篇文章"
+author: "Wofiporia"
 date: "2026-03-03T10:00:00Z"
 tags: ["博客", "Go"]
 draft: false
 ---
-
-# 欢迎使用 Folio
-
-这是正文内容。
 ```
 
-## 技术栈
-
-| 组件 | 选型 | 说明 |
-| --- | --- | --- |
-| 后端 | Go | 单文件部署，性能稳定 |
-| HTTP | `net/http` | 标准库，无额外依赖 |
-| 模板 | `html/template` | 服务端模板渲染，默认安全转义 |
-| 内容 | Markdown + YAML Front Matter | 易写作、易版本管理 |
-| 存储 | 文件系统（`posts/*.md`） | 透明、易备份、易迁移 |
-| 前端 | 原生 HTML/CSS/JavaScript | 无构建链路 |
+说明：`author` 可选；未填写时回退到 `config.json` 的 `author_name`。
 
 ## 功能
 
@@ -91,7 +108,7 @@ draft: false
 - 搜索页：`/search`（前端读取 `search-index.json`）
 - 草稿过滤：`draft: true` 不在前台展示
 - Markdown 渲染增强：标题、段落、代码块、列表、引用、链接、粗体、斜体
-- SEO 元信息：`description`、Open Graph、`canonical`、文章发布时间标签
+- SEO 元信息：`description`、Open Graph、`canonical`、`article:published_time`
 
 ## 本地开发（可选）
 
@@ -107,6 +124,11 @@ go run .
 go run ./cmd/build -out dist -base-path /your-repo-name
 ```
 
+如需在导出时覆盖站点 URL（优先级高于 `config.json`）：
+
+```bash
+go run ./cmd/build -out dist -base-path /your-repo-name -site-url https://example.com
+```
 
 ## 项目结构
 
@@ -114,9 +136,11 @@ go run ./cmd/build -out dist -base-path /your-repo-name
 folio/
 ├── main.go
 ├── cmd/build/main.go
+├── config.json
 ├── posts/
 ├── static/
 ├── templates/
 ├── .github/workflows/pages.yml
 └── README.md
 ```
+
