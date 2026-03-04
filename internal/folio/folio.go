@@ -51,6 +51,7 @@ type AppConfig struct {
 	SiteDescription    string `json:"site_description"`
 	SiteURL            string `json:"site_url"`
 	AuthorName         string `json:"author_name"`
+	Theme              string `json:"theme"`
 	DefaultDescription string `json:"default_description"`
 	DefaultOGImage     string `json:"default_og_image"`
 	DefaultOGType      string `json:"default_og_type"`
@@ -77,10 +78,11 @@ var (
 func DefaultConfig() AppConfig {
 	return AppConfig{
 		SiteTitle:          "Folio",
-		SiteDescription:    "一个基于 Go 和文件系统的轻量博客。",
+		SiteDescription:    "A lightweight blog powered by Go and file storage.",
 		SiteURL:            "",
 		AuthorName:         "Anonymous",
-		DefaultDescription: "一个基于 Go 和文件系统的轻量博客。",
+		Theme:              "default",
+		DefaultDescription: "A lightweight blog powered by Go and file storage.",
 		DefaultOGImage:     "",
 		DefaultOGType:      "website",
 	}
@@ -98,6 +100,7 @@ func (c *AppConfig) normalize() {
 	if strings.TrimSpace(c.AuthorName) == "" {
 		c.AuthorName = d.AuthorName
 	}
+	c.Theme = NormalizeThemeName(c.Theme)
 	if strings.TrimSpace(c.DefaultDescription) == "" {
 		c.DefaultDescription = c.SiteDescription
 	}
@@ -400,6 +403,50 @@ func SlugifyTag(s string) string {
 		return "tag"
 	}
 	return out
+}
+
+func NormalizeThemeName(theme string) string {
+	theme = strings.ToLower(strings.TrimSpace(theme))
+	if theme == "" {
+		return "default"
+	}
+	for _, r := range theme {
+		ok := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_'
+		if !ok {
+			return "default"
+		}
+	}
+	return theme
+}
+
+func ResolveTemplatePath(theme, rel string) string {
+	rel = strings.TrimLeft(strings.ReplaceAll(rel, "\\", "/"), "/")
+	t := NormalizeThemeName(theme)
+	candidates := []string{
+		filepath.Join("themes", t, "templates", filepath.FromSlash(rel)),
+		filepath.Join("themes", "default", "templates", filepath.FromSlash(rel)),
+	}
+	for _, p := range candidates {
+		if info, err := os.Stat(p); err == nil && !info.IsDir() {
+			return p
+		}
+	}
+	return ""
+}
+
+func ResolveStaticPath(theme, rel string) string {
+	rel = strings.TrimLeft(strings.ReplaceAll(rel, "\\", "/"), "/")
+	t := NormalizeThemeName(theme)
+	candidates := []string{
+		filepath.Join("themes", t, "static", filepath.FromSlash(rel)),
+		filepath.Join("themes", "default", "static", filepath.FromSlash(rel)),
+	}
+	for _, p := range candidates {
+		if info, err := os.Stat(p); err == nil && !info.IsDir() {
+			return p
+		}
+	}
+	return ""
 }
 
 func splitFrontMatter(content string) (map[string]string, string) {

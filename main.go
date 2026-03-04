@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -35,7 +36,7 @@ func main() {
 	appConfig = cfg
 
 	mux := http.NewServeMux()
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	mux.HandleFunc("/static/", staticHandler)
 	mux.HandleFunc("/", indexHandler)
 	mux.HandleFunc("/post/", postHandler)
 	mux.HandleFunc("/tags", tagsHandler)
@@ -85,7 +86,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tpl, err := parseTemplate("", "dynamic", "templates/index.html")
+	tpl, err := parseTemplate("", "dynamic", "index.html")
 	if err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 		log.Printf("parse index template error: %v", err)
@@ -129,7 +130,7 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tpl, err := parseTemplate("", "dynamic", "templates/post.html")
+	tpl, err := parseTemplate("", "dynamic", "post.html")
 	if err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 		log.Printf("parse post template error: %v", err)
@@ -177,7 +178,7 @@ func tagsHandler(w http.ResponseWriter, r *http.Request) {
 		filtered = core.FilterPostsByTag(posts, currentTag)
 	}
 
-	tpl, err := parseTemplate("", "dynamic", "templates/tags.html")
+	tpl, err := parseTemplate("", "dynamic", "tags.html")
 	if err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 		log.Printf("parse tags template error: %v", err)
@@ -212,7 +213,7 @@ func archivesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tpl, err := parseTemplate("", "dynamic", "templates/archives.html")
+	tpl, err := parseTemplate("", "dynamic", "archives.html")
 	if err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 		log.Printf("parse archives template error: %v", err)
@@ -234,7 +235,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tpl, err := parseTemplate("", "dynamic", "templates/search.html")
+	tpl, err := parseTemplate("", "dynamic", "search.html")
 	if err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
 		log.Printf("parse search template error: %v", err)
@@ -269,9 +270,27 @@ func searchIndexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func parseTemplate(basePath, tagMode, page string) (*template.Template, error) {
-	return core.ParseTemplate(page, basePath, func(tag string) string {
+	return core.ParseTemplate(appConfig.Theme, page, func(tag string) string {
 		return core.BuildTagURL(basePath, tag, tagMode)
 	})
+}
+
+func staticHandler(w http.ResponseWriter, r *http.Request) {
+	if !strings.HasPrefix(r.URL.Path, "/static/") {
+		http.NotFound(w, r)
+		return
+	}
+	rel := strings.TrimPrefix(path.Clean("/"+strings.TrimPrefix(r.URL.Path, "/static/")), "/")
+	if rel == "" || rel == "." {
+		http.NotFound(w, r)
+		return
+	}
+	p := core.ResolveStaticPath(appConfig.Theme, rel)
+	if p == "" {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, p)
 }
 
 func loadPosts(dir string) ([]core.Post, error) {

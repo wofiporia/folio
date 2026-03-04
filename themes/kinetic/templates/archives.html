@@ -1,0 +1,39 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <title>{{.Title}} - {{.SEO.SiteName}}</title>
+  <meta property="og:title" content="{{.Title}} - {{.SEO.SiteName}}">
+  {{template "head_common" .}}
+</head>
+<body>
+  <div class="sparkle sparkle-a"></div>
+  <div class="sparkle sparkle-b"></div>
+  <main class="container">
+    <header class="page-header">
+      <h1>归档页</h1>
+      <p class="subtitle">按时间顺序查看历史文章。</p>
+      {{template "site_nav_top" .}}
+    </header>
+
+    {{if .Groups}}
+    <section class="archive-stack">
+      {{range .Groups}}
+      <article class="archive-group">
+        <h2>{{.Label}}</h2>
+        <ul>
+          {{range .Posts}}
+          <li>
+            <span class="meta">{{.DateDisplay}}</span>
+            <a href="{{$.BasePath}}/post/{{.Slug}}">{{.Title}}</a>
+          </li>
+          {{end}}
+        </ul>
+      </article>
+      {{end}}
+    </section>
+    {{else}}
+    <p class="empty">暂无归档内容。</p>
+    {{end}}
+  </main>
+</body>
+</html>

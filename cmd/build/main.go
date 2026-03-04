@@ -29,6 +29,7 @@ func main() {
 	if strings.TrimSpace(*siteURL) != "" {
 		cfg.SiteURL = strings.TrimRight(strings.TrimSpace(*siteURL), "/")
 	}
+	log.Printf("build theme=%q", cfg.Theme)
 
 	posts, err := core.LoadPosts("posts", cfg.AuthorName)
 	if err != nil {
@@ -46,13 +47,16 @@ func main() {
 	if err := os.WriteFile(filepath.Join(*outDir, ".nojekyll"), []byte{}, 0644); err != nil {
 		log.Fatal(err)
 	}
-	if err := copyDir("static", filepath.Join(*outDir, "static")); err != nil {
+	if err := copyDirIfExists(filepath.Join("themes", "default", "static"), filepath.Join(*outDir, "static")); err != nil {
+		log.Fatal(err)
+	}
+	if err := copyDirIfExists(filepath.Join("themes", core.NormalizeThemeName(cfg.Theme), "static"), filepath.Join(*outDir, "static")); err != nil {
 		log.Fatal(err)
 	}
 
 	base := core.NormalizeBasePath(*basePath)
 
-	if err := renderToFile(filepath.Join(*outDir, "index.html"), "templates/index.html", *basePath, tagURLs, core.IndexPageData{
+	if err := renderToFile(filepath.Join(*outDir, "index.html"), "index.html", *basePath, tagURLs, cfg.Theme, core.IndexPageData{
 		Title:           cfg.SiteTitle,
 		BasePath:        base,
 		SiteDescription: cfg.SiteDescription,
@@ -62,7 +66,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := renderToFile(filepath.Join(*outDir, "archives", "index.html"), "templates/archives.html", *basePath, tagURLs, core.ArchivesPageData{
+	if err := renderToFile(filepath.Join(*outDir, "archives", "index.html"), "archives.html", *basePath, tagURLs, cfg.Theme, core.ArchivesPageData{
 		Title:    "归档",
 		BasePath: base,
 		SEO:      core.MakeSEO(cfg, "归档 - "+cfg.SiteTitle, "按月份浏览历史文章。", core.WithBase(*basePath, "/archives"), "website", ""),
@@ -71,7 +75,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := renderToFile(filepath.Join(*outDir, "search", "index.html"), "templates/search.html", *basePath, tagURLs, core.SearchPageData{
+	if err := renderToFile(filepath.Join(*outDir, "search", "index.html"), "search.html", *basePath, tagURLs, cfg.Theme, core.SearchPageData{
 		Title:    "搜索",
 		BasePath: base,
 		SEO:      core.MakeSEO(cfg, "搜索 - "+cfg.SiteTitle, "在博客中搜索标题、标签和正文。", core.WithBase(*basePath, "/search"), "website", ""),
@@ -83,7 +87,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := renderToFile(filepath.Join(*outDir, "tags", "index.html"), "templates/tags.html", *basePath, tagURLs, core.TagsPageData{
+	if err := renderToFile(filepath.Join(*outDir, "tags", "index.html"), "tags.html", *basePath, tagURLs, cfg.Theme, core.TagsPageData{
 		Title:      "标签",
 		BasePath:   base,
 		SEO:        core.MakeSEO(cfg, "标签 - "+cfg.SiteTitle, "按标签浏览文章内容。", core.WithBase(*basePath, "/tags"), "website", ""),
@@ -97,7 +101,7 @@ func main() {
 	for _, stat := range tagStats {
 		filtered := core.FilterPostsByTag(posts, stat.Name)
 		slug := tagSlugs[stat.Name]
-		if err := renderToFile(filepath.Join(*outDir, "tags", slug, "index.html"), "templates/tags.html", *basePath, tagURLs, core.TagsPageData{
+		if err := renderToFile(filepath.Join(*outDir, "tags", slug, "index.html"), "tags.html", *basePath, tagURLs, cfg.Theme, core.TagsPageData{
 			Title:      "标签: " + stat.Name,
 			BasePath:   base,
 			SEO:        core.MakeSEO(cfg, "标签: "+stat.Name+" - "+cfg.SiteTitle, "按标签浏览文章内容。", core.WithBase(*basePath, "/tags/"+slug+"/"), "website", ""),
@@ -110,7 +114,7 @@ func main() {
 	}
 
 	for _, post := range posts {
-		if err := renderToFile(filepath.Join(*outDir, "post", post.Slug, "index.html"), "templates/post.html", *basePath, tagURLs, core.PostPageData{
+		if err := renderToFile(filepath.Join(*outDir, "post", post.Slug, "index.html"), "post.html", *basePath, tagURLs, cfg.Theme, core.PostPageData{
 			Title:    post.Title,
 			BasePath: base,
 			SEO:      core.MakeSEO(cfg, post.Title+" - "+cfg.SiteTitle, core.Excerpt(post.Markdown, 140), core.WithBase(*basePath, "/post/"+post.Slug+"/"), "article", post.Date.Format(time.RFC3339)),
@@ -138,8 +142,8 @@ func writeJSON(path string, v any) error {
 	return enc.Encode(v)
 }
 
-func renderToFile(dstPath, templatePath, basePath string, tagURLs map[string]string, data any) error {
-	tpl, err := parseTemplate(basePath, tagURLs, templatePath)
+func renderToFile(dstPath, page, basePath string, tagURLs map[string]string, theme string, data any) error {
+	tpl, err := parseTemplate(basePath, tagURLs, theme, page)
 	if err != nil {
 		return err
 	}
@@ -159,8 +163,8 @@ func renderToFile(dstPath, templatePath, basePath string, tagURLs map[string]str
 	return nil
 }
 
-func parseTemplate(basePath string, tagURLs map[string]string, page string) (*template.Template, error) {
-	return core.ParseTemplate(page, basePath, func(tag string) string {
+func parseTemplate(basePath string, tagURLs map[string]string, theme, page string) (*template.Template, error) {
+	return core.ParseTemplate(theme, page, func(tag string) string {
 		if u, ok := tagURLs[tag]; ok {
 			return u
 		}
@@ -205,4 +209,18 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	return out.Close()
+}
+
+func copyDirIfExists(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if !info.IsDir() {
+		return nil
+	}
+	return copyDir(src, dst)
 }

@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
   <title>{{.Title}} - {{.SEO.SiteName}}</title>
@@ -6,16 +6,19 @@
   {{template "head_common" .}}
 </head>
 <body>
+  <div class="sparkle sparkle-a"></div>
+  <div class="sparkle sparkle-b"></div>
   <main class="container">
     <header class="page-header">
-      <h1>搜索</h1>
+      <h1>搜索页</h1>
+      <p class="subtitle">输入关键词搜索标题、标签和正文。</p>
       {{template "site_nav_top" .}}
     </header>
 
     <section class="search-panel" data-base-path="{{.BasePath}}">
       <input id="q" class="search-input" type="search" placeholder="输入关键词（标题、标签、正文）">
       <p id="search-meta" class="meta">输入关键词后开始搜索。</p>
-      <div id="search-results" class="post-list"></div>
+      <div id="search-results" class="post-grid"></div>
     </section>
   </main>
 
@@ -46,7 +49,7 @@
 
         meta.textContent = `找到 ${list.length} 条结果`;
         if (!list.length) {
-          results.innerHTML = "<p>没有匹配结果。</p>";
+          results.innerHTML = "<p class='empty'>没有匹配结果。</p>";
           return;
         }
 
@@ -56,10 +59,10 @@
           return `
             <a class="post-card-link" href="${basePath}/post/${encodeURIComponent(doc.slug)}">
               <article class="post-card">
-                <h2>${escapeHtml(doc.title || "")}</h2>
                 <p class="meta">${escapeHtml(doc.date || "")}</p>
+                <h3>${escapeHtml(doc.title || "")}</h3>
                 ${tags ? `<p class="tags">${tags}</p>` : ""}
-                ${snippet ? `<p>${escapeHtml(snippet)}...</p>` : ""}
+                ${snippet ? `<p class="snippet">${escapeHtml(snippet)}...</p>` : ""}
               </article>
             </a>
           `;

@@ -1,0 +1,95 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <title>{{.Title}} - {{.SEO.SiteName}}</title>
+  <meta property="og:title" content="{{.Title}} - {{.SEO.SiteName}}">
+  {{template "head_common" .}}
+</head>
+<body>
+  <main class="container">
+    <header class="page-header">
+      <h1>搜索</h1>
+      <p class="subtitle">按关键词搜索标题、标签和正文。</p>
+      {{template "site_nav_top" .}}
+    </header>
+
+    <section class="search-panel" data-base-path="{{.BasePath}}">
+      <input id="q" class="search-input" type="search" placeholder="输入关键词（标题、标签、正文）">
+      <p id="search-meta" class="meta">输入关键词后开始搜索。</p>
+      <div id="search-results" class="post-list"></div>
+    </section>
+  </main>
+
+  <script>
+    (async function () {
+      const panel = document.querySelector(".search-panel");
+      const basePath = panel?.dataset.basePath || "";
+      const input = document.getElementById("q");
+      const meta = document.getElementById("search-meta");
+      const results = document.getElementById("search-results");
+      let docs = [];
+
+      function escapeHtml(str) {
+        return str
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function render(list, keyword) {
+        if (!keyword) {
+          meta.textContent = "输入关键词后开始搜索。";
+          results.innerHTML = "";
+          return;
+        }
+
+        meta.textContent = `找到 ${list.length} 条结果`;
+        if (!list.length) {
+          results.innerHTML = "<p class='empty'>没有匹配结果。</p>";
+          return;
+        }
+
+        results.innerHTML = list.map((doc) => {
+          const snippet = (doc.content || "").slice(0, 120);
+          const tags = (doc.tags || []).map((t) => `<span>#${escapeHtml(t)}</span>`).join("");
+          return `
+            <a class="post-card-link" href="${basePath}/post/${encodeURIComponent(doc.slug)}">
+              <article class="post-card">
+                <h2>${escapeHtml(doc.title || "")}</h2>
+                <p class="meta">${escapeHtml(doc.date || "")}</p>
+                ${tags ? `<p class="tags">${tags}</p>` : ""}
+                ${snippet ? `<p>${escapeHtml(snippet)}...</p>` : ""}
+              </article>
+            </a>
+          `;
+        }).join("");
+      }
+
+      try {
+        const resp = await fetch(`${basePath}/search-index.json`, { cache: "no-store" });
+        docs = await resp.json();
+      } catch (err) {
+        meta.textContent = "搜索索引加载失败。";
+        return;
+      }
+
+      const run = () => {
+        const keyword = input.value.trim().toLowerCase();
+        if (!keyword) {
+          render([], "");
+          return;
+        }
+        const matched = docs.filter((doc) => {
+          const hay = `${doc.title || ""} ${(doc.tags || []).join(" ")} ${doc.content || ""}`.toLowerCase();
+          return hay.includes(keyword);
+        });
+        render(matched, keyword);
+      };
+
+      input.addEventListener("input", run);
+    })();
+  </script>
+</body>
+</html>

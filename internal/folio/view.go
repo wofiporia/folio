@@ -1,8 +1,8 @@
 package folio
 
 import (
+	"fmt"
 	"html/template"
-	"path/filepath"
 )
 
 type IndexPageData struct {
@@ -42,14 +42,16 @@ type SearchPageData struct {
 	SEO      SEO
 }
 
-func ParseTemplate(pagePath, basePath string, tagResolver func(string) string) (*template.Template, error) {
+func ParseTemplate(theme, pageRel string, tagResolver func(string) string) (*template.Template, error) {
 	funcMap := template.FuncMap{
 		"tagURL": tagResolver,
 	}
-	files := []string{
-		"templates/partials/head-common.html",
-		"templates/partials/nav.html",
-		pagePath,
+	head := ResolveTemplatePath(theme, "partials/head-common.html")
+	nav := ResolveTemplatePath(theme, "partials/nav.html")
+	page := ResolveTemplatePath(theme, pageRel)
+	if head == "" || nav == "" || page == "" {
+		return nil, fmt.Errorf("theme templates not found: theme=%s page=%s", theme, pageRel)
 	}
-	return template.New(filepath.Base(pagePath)).Funcs(funcMap).ParseFiles(files...)
+	files := []string{head, nav, page}
+	return template.New(pageRel).Funcs(funcMap).ParseFiles(files...)
 }

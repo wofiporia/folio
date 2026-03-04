@@ -1,5 +1,5 @@
-{{define "site_nav_top"}}
-<nav class="top-nav">
+﻿{{define "site_nav_top"}}
+<nav class="top-nav" aria-label="主导航">
   <a href="{{.BasePath}}/">首页</a>
   <a href="{{.BasePath}}/tags">标签</a>
   <a href="{{.BasePath}}/archives">归档</a>
@@ -8,8 +8,8 @@
 {{end}}
 
 {{define "site_nav_back"}}
-<nav class="back-nav">
-  <a href="{{.BasePath}}/">首页</a>
+<nav class="back-nav" aria-label="页面导航">
+  <a href="{{.BasePath}}/">返回首页</a>
   <a href="{{.BasePath}}/tags">标签</a>
   <a href="{{.BasePath}}/archives">归档</a>
   <a href="{{.BasePath}}/search">搜索</a>

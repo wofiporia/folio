@@ -55,6 +55,7 @@
   "site_description": "一个基于 Go 和文件系统的轻量博客。", // 站点简介（默认用于 SEO 描述）
   "site_url": "https://wofiporia.github.io/folio", // 站点完整 URL（用于 canonical/og:url）
   "author_name": "Wofiporia", // 默认作者名（文章未写 author 时回退）
+  "theme": "default", // 主题名（对应 themes/<theme>/）
   "default_description": "这里什么都没有写", // SEO 默认描述（页面/文章无描述时使用）
   "default_og_image": "", // Open Graph 默认图片 URL（可留空）
   "default_og_type": "website" // Open Graph 默认类型（如 website / article）
@@ -67,14 +68,38 @@
 - `site_description`：站点描述，会显示在首页标题下方，同时作为站点级 SEO 描述默认值。
 - `site_url`：站点完整地址（必须带协议），用于生成绝对 `canonical` 与 `og:url`。
 - `author_name`：默认作者名，文章 Front Matter 未设置 `author` 时使用。
+- `theme`：前端主题名。程序会优先读取 `themes/<theme>/templates/*` 与 `themes/<theme>/static/*`，并自动回退到 `themes/default`。
 - `default_description`：全站 SEO 默认描述，页面没有更具体描述时使用。
 - `default_og_image`：全站分享默认封面图 URL（可选）。
 - `default_og_type`：Open Graph 默认类型，常见 `website`。
 
+### 主题目录约定
+
+```text
+themes/
+└── <theme-name>/
+    ├── templates/
+    │   ├── index.html
+    │   ├── post.html
+    │   ├── tags.html
+    │   ├── archives.html
+    │   ├── search.html
+    │   └── partials/
+    │       ├── head-common.html
+    │       └── nav.html
+    └── static/
+        ├── style.css
+        └── favicon.png
+```
+
+- 默认主题：`themes/default`
+- 切换主题：修改 `config.json` 中 `theme` 字段并重启服务（或重新导出静态站点）
+- 示例主题：`default`（简洁） / `kinetic`（更大胆的视觉与排版）
+
 ### 图标自定义
 
-- 直接替换 `static/favicon.png` 即可。
-- 文件名保持 `favicon.png`，页面会自动加载该图标。
+- 直接替换 `themes/<theme>/static/favicon.png` 即可。
+- 若当前主题未提供，会回退到 `themes/default/static/favicon.png`。
 
 ## 内容发布方式
 
@@ -138,8 +163,7 @@ folio/
 ├── cmd/build/main.go
 ├── config.json
 ├── posts/
-├── static/
-├── templates/
+├── themes/
 ├── .github/workflows/pages.yml
 └── README.md
 ```
