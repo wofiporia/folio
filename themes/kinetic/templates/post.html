@@ -1,0 +1,30 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <title>{{.Title}}</title>
+  <meta property="og:title" content="{{.Title}}">
+  {{template "head_common" .}}
+  {{if .SEO.PublishedTime}}<meta property="article:published_time" content="{{.SEO.PublishedTime}}">{{end}}
+</head>
+<body>
+  <div class="sparkle sparkle-a"></div>
+  <div class="sparkle sparkle-b"></div>
+  <main class="container">
+    {{template "site_nav_back" .}}
+    <article class="post-detail">
+      <header>
+        <p class="meta">{{.Post.DateDisplay}}{{if .Post.Author}} · {{.Post.Author}}{{end}}</p>
+        <h1>{{.Post.Title}}</h1>
+        {{if .Post.Tags}}
+        <p class="tags">
+          {{range .Post.Tags}}
+          <a class="tag-link" href="{{tagURL .}}">#{{.}}</a>
+          {{end}}
+        </p>
+        {{end}}
+      </header>
+      <section class="content">{{.Post.HTML}}</section>
+    </article>
+  </main>
+</body>
+</html>

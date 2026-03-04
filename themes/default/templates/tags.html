@@ -1,17 +1,26 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
-  <title>{{.Title}}</title>
-  <meta property="og:title" content="{{.Title}}">
+  <title>{{.Title}} - {{.SEO.SiteName}}</title>
+  <meta property="og:title" content="{{.Title}} - {{.SEO.SiteName}}">
   {{template "head_common" .}}
 </head>
 <body>
   <main class="container">
     <header class="page-header">
-      <h1>{{.SEO.SiteName}}</h1>
-      <p>{{.SiteDescription}}</p>
+      <h1>标签</h1>
+      <p class="subtitle">按主题快速浏览文章。</p>
       {{template "site_nav_top" .}}
     </header>
+
+    <section class="chip-list">
+      <a class="chip {{if eq .CurrentTag ""}}active{{end}}" href="{{.BasePath}}/tags">全部</a>
+      {{range .Tags}}
+      <a class="chip {{if eq $.CurrentTag .Name}}active{{end}}" href="{{.URL}}">
+        {{.Name}} ({{.Count}})
+      </a>
+      {{end}}
+    </section>
 
     <section class="post-list">
       {{if .Posts}}
@@ -19,7 +28,7 @@
       <a class="post-card-link" href="{{$.BasePath}}/post/{{.Slug}}">
         <article class="post-card">
           <h2>{{.Title}}</h2>
-          <p class="meta">{{.DateDisplay}}{{if .Author}} · {{.Author}}{{end}}</p>
+          <p class="meta">{{.DateDisplay}}</p>
           {{if .Tags}}
           <p class="tags">
             {{range .Tags}}<span>#{{.}}</span>{{end}}
@@ -29,7 +38,7 @@
       </a>
       {{end}}
       {{else}}
-      <p>暂无文章。</p>
+      <p class="empty">该标签下暂无文章。</p>
       {{end}}
     </section>
   </main>

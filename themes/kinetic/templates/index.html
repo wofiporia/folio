@@ -1,0 +1,44 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <title>{{.Title}}</title>
+  <meta property="og:title" content="{{.Title}}">
+  {{template "head_common" .}}
+</head>
+<body>
+  <div class="sparkle sparkle-a"></div>
+  <div class="sparkle sparkle-b"></div>
+  <main class="container">
+    <header class="hero-card">
+      <h1>{{.SEO.SiteName}}</h1>
+      <p class="subtitle">{{.SiteDescription}}</p>
+      {{template "site_nav_top" .}}
+    </header>
+
+    <section class="section-head">
+      <h2>最新文章</h2>
+      <p>想写就写，保持轻松更新。</p>
+    </section>
+
+    <section class="post-grid">
+      {{if .Posts}}
+      {{range .Posts}}
+      <a class="post-card-link" href="{{$.BasePath}}/post/{{.Slug}}">
+        <article class="post-card">
+          <p class="meta">{{.DateDisplay}}{{if .Author}} · {{.Author}}{{end}}</p>
+          <h3>{{.Title}}</h3>
+          {{if .Tags}}
+          <p class="tags">
+            {{range .Tags}}<span>#{{.}}</span>{{end}}
+          </p>
+          {{end}}
+        </article>
+      </a>
+      {{end}}
+      {{else}}
+      <p class="empty">暂无文章，先写一篇吧。</p>
+      {{end}}
+    </section>
+  </main>
+</body>
+</html>

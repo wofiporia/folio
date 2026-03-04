@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
   <title>{{.Title}} - {{.SEO.SiteName}}</title>
@@ -9,6 +9,7 @@
   <main class="container">
     <header class="page-header">
       <h1>归档</h1>
+      <p class="subtitle">按时间查看历史文章。</p>
       {{template "site_nav_top" .}}
     </header>
 
@@ -29,7 +30,7 @@
       {{end}}
     </section>
     {{else}}
-    <p>暂无归档内容。</p>
+    <p class="empty">暂无归档内容。</p>
     {{end}}
   </main>
 </body>

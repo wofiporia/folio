@@ -1,0 +1,37 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <title>{{.Title}}</title>
+  <meta property="og:title" content="{{.Title}}">
+  {{template "head_common" .}}
+</head>
+<body>
+  <main class="container">
+    <header class="page-header">
+      <h1>{{.SEO.SiteName}}</h1>
+      <p class="subtitle">{{.SiteDescription}}</p>
+      {{template "site_nav_top" .}}
+    </header>
+
+    <section class="post-list">
+      {{if .Posts}}
+      {{range .Posts}}
+      <a class="post-card-link" href="{{$.BasePath}}/post/{{.Slug}}">
+        <article class="post-card">
+          <h2>{{.Title}}</h2>
+          <p class="meta">{{.DateDisplay}}{{if .Author}} · {{.Author}}{{end}}</p>
+          {{if .Tags}}
+          <p class="tags">
+            {{range .Tags}}<span>#{{.}}</span>{{end}}
+          </p>
+          {{end}}
+        </article>
+      </a>
+      {{end}}
+      {{else}}
+      <p class="empty">暂无文章，先写一篇吧。</p>
+      {{end}}
+    </section>
+  </main>
+</body>
+</html>

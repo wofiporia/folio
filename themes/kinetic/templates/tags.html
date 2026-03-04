@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
   <title>{{.Title}} - {{.SEO.SiteName}}</title>
@@ -6,38 +6,34 @@
   {{template "head_common" .}}
 </head>
 <body>
+  <div class="sparkle sparkle-a"></div>
+  <div class="sparkle sparkle-b"></div>
   <main class="container">
     <header class="page-header">
-      <h1>标签</h1>
+      <h1>标签页</h1>
+      <p class="subtitle">按主题快速浏览相关内容。</p>
       {{template "site_nav_top" .}}
     </header>
 
     <section class="chip-list">
       <a class="chip {{if eq .CurrentTag ""}}active{{end}}" href="{{.BasePath}}/tags">全部</a>
       {{range .Tags}}
-      <a class="chip {{if eq $.CurrentTag .Name}}active{{end}}" href="{{.URL}}">
-        {{.Name}} ({{.Count}})
-      </a>
+      <a class="chip {{if eq $.CurrentTag .Name}}active{{end}}" href="{{.URL}}">{{.Name}} ({{.Count}})</a>
       {{end}}
     </section>
 
-    <section class="post-list">
+    <section class="post-grid">
       {{if .Posts}}
       {{range .Posts}}
       <a class="post-card-link" href="{{$.BasePath}}/post/{{.Slug}}">
         <article class="post-card">
-          <h2>{{.Title}}</h2>
           <p class="meta">{{.DateDisplay}}</p>
-          {{if .Tags}}
-          <p class="tags">
-            {{range .Tags}}<span>#{{.}}</span>{{end}}
-          </p>
-          {{end}}
+          <h3>{{.Title}}</h3>
         </article>
       </a>
       {{end}}
       {{else}}
-      <p>该标签下暂无文章。</p>
+      <p class="empty">该标签下暂无文章。</p>
       {{end}}
     </section>
   </main>
