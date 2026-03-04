@@ -1,28 +1,15 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{.Title}} - Folio</title>
-  <meta name="description" content="{{.SEO.Description}}">
-  <link rel="canonical" href="{{.SEO.CanonicalURL}}">
-  <meta property="og:type" content="{{.SEO.OGType}}">
-  <meta property="og:site_name" content="{{.SEO.SiteName}}">
-  <meta property="og:title" content="{{.Title}} - Folio">
-  <meta property="og:description" content="{{.SEO.Description}}">
-  <meta property="og:url" content="{{.SEO.OGURL}}">
-  <link rel="stylesheet" href="{{.BasePath}}/static/style.css">
+  <title>{{.Title}} - {{.SEO.SiteName}}</title>
+  <meta property="og:title" content="{{.Title}} - {{.SEO.SiteName}}">
+  {{template "head_common" .}}
 </head>
 <body>
   <main class="container">
     <header class="page-header">
       <h1>归档</h1>
-      <nav class="top-nav">
-        <a href="{{.BasePath}}/">首页</a>
-        <a href="{{.BasePath}}/tags">标签</a>
-        <a href="{{.BasePath}}/archives">归档</a>
-        <a href="{{.BasePath}}/search">搜索</a>
-      </nav>
+      {{template "site_nav_top" .}}
     </header>
 
     {{if .Groups}}
