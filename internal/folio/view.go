@@ -8,38 +8,48 @@ import (
 type IndexPageData struct {
 	Title           string
 	BasePath        string
+	StylePath       string
+	FaviconPath     string
 	SiteDescription string
 	SEO             SEO
 	Posts           []Post
 }
 
 type PostPageData struct {
-	Title    string
-	BasePath string
-	SEO      SEO
-	Post     Post
+	Title       string
+	BasePath    string
+	StylePath   string
+	FaviconPath string
+	SEO         SEO
+	Post        Post
 }
 
 type TagsPageData struct {
-	Title      string
-	BasePath   string
-	SEO        SEO
-	CurrentTag string
-	Tags       []TagStat
-	Posts      []Post
+	Title       string
+	BasePath    string
+	StylePath   string
+	FaviconPath string
+	SEO         SEO
+	CurrentTag  string
+	Tags        []TagStat
+	Posts       []Post
 }
 
 type ArchivesPageData struct {
-	Title    string
-	BasePath string
-	SEO      SEO
-	Groups   []ArchiveGroup
+	Title       string
+	BasePath    string
+	StylePath   string
+	FaviconPath string
+	SEO         SEO
+	Groups      []ArchiveGroup
 }
 
 type SearchPageData struct {
-	Title    string
-	BasePath string
-	SEO      SEO
+	Title       string
+	BasePath    string
+	StylePath   string
+	FaviconPath string
+	SEO         SEO
 }
 
 func ParseTemplate(theme, pageRel string, tagResolver func(string) string) (*template.Template, error) {

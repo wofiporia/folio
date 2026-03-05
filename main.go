@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -68,6 +69,9 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 func renderHTML(w http.ResponseWriter, tpl *template.Template, data any, page string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 	if err := tpl.Execute(w, data); err != nil {
 		log.Printf("execute %s template error: %v", page, err)
 	}
@@ -93,9 +97,12 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	stylePath, faviconPath := currentAssetPaths("")
 	data := core.IndexPageData{
 		Title:           appConfig.SiteTitle,
 		BasePath:        "",
+		StylePath:       stylePath,
+		FaviconPath:     faviconPath,
 		SiteDescription: appConfig.SiteDescription,
 		SEO:             core.MakeSEO(appConfig, appConfig.SiteTitle, appConfig.SiteDescription, "/", "website", ""),
 		Posts:           posts,
@@ -137,9 +144,12 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	stylePath, faviconPath := currentAssetPaths("")
 	data := core.PostPageData{
-		Title:    post.Title,
-		BasePath: "",
+		Title:       post.Title,
+		BasePath:    "",
+		StylePath:   stylePath,
+		FaviconPath: faviconPath,
 		SEO: core.MakeSEO(
 			appConfig,
 			post.Title+" - "+appConfig.SiteTitle,
@@ -189,13 +199,16 @@ func tagsHandler(w http.ResponseWriter, r *http.Request) {
 	if currentTag != "" {
 		title = "标签: " + currentTag
 	}
+	stylePath, faviconPath := currentAssetPaths("")
 	data := core.TagsPageData{
-		Title:      title,
-		BasePath:   "",
-		SEO:        core.MakeSEO(appConfig, title+" - "+appConfig.SiteTitle, "按标签浏览文章内容。", "/tags", "website", ""),
-		CurrentTag: currentTag,
-		Tags:       tagStats,
-		Posts:      filtered,
+		Title:       title,
+		BasePath:    "",
+		StylePath:   stylePath,
+		FaviconPath: faviconPath,
+		SEO:         core.MakeSEO(appConfig, title+" - "+appConfig.SiteTitle, "按标签浏览文章内容。", "/tags", "website", ""),
+		CurrentTag:  currentTag,
+		Tags:        tagStats,
+		Posts:       filtered,
 	}
 	renderHTML(w, tpl, data, "tags")
 }
@@ -220,11 +233,14 @@ func archivesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	stylePath, faviconPath := currentAssetPaths("")
 	data := core.ArchivesPageData{
-		Title:    "归档",
-		BasePath: "",
-		SEO:      core.MakeSEO(appConfig, "归档 - "+appConfig.SiteTitle, "按月份浏览历史文章。", "/archives", "website", ""),
-		Groups:   core.BuildArchiveGroups(posts),
+		Title:       "归档",
+		BasePath:    "",
+		StylePath:   stylePath,
+		FaviconPath: faviconPath,
+		SEO:         core.MakeSEO(appConfig, "归档 - "+appConfig.SiteTitle, "按月份浏览历史文章。", "/archives", "website", ""),
+		Groups:      core.BuildArchiveGroups(posts),
 	}
 	renderHTML(w, tpl, data, "archives")
 }
@@ -242,10 +258,13 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	stylePath, faviconPath := currentAssetPaths("")
 	data := core.SearchPageData{
-		Title:    "搜索",
-		BasePath: "",
-		SEO:      core.MakeSEO(appConfig, "搜索 - "+appConfig.SiteTitle, "在博客中搜索标题、标签和正文。", "/search", "website", ""),
+		Title:       "搜索",
+		BasePath:    "",
+		StylePath:   stylePath,
+		FaviconPath: faviconPath,
+		SEO:         core.MakeSEO(appConfig, "搜索 - "+appConfig.SiteTitle, "在博客中搜索标题、标签和正文。", "/search", "website", ""),
 	}
 	renderHTML(w, tpl, data, "search")
 }
@@ -291,6 +310,24 @@ func staticHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.ServeFile(w, r, p)
+}
+
+func currentAssetPaths(basePath string) (string, string) {
+	styleURL := core.WithBase(basePath, "/static/style.css")
+	faviconURL := core.WithBase(basePath, "/static/favicon.png")
+	return withAssetVersion("style.css", styleURL), withAssetVersion("favicon.png", faviconURL)
+}
+
+func withAssetVersion(rel, publicURL string) string {
+	p := core.ResolveStaticPath(appConfig.Theme, rel)
+	if p == "" {
+		return publicURL
+	}
+	info, err := os.Stat(p)
+	if err != nil {
+		return publicURL
+	}
+	return publicURL + "?v=" + strconv.FormatInt(info.ModTime().Unix(), 10)
 }
 
 func loadPosts(dir string) ([]core.Post, error) {
