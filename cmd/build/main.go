@@ -1,8 +1,10 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
@@ -29,7 +31,6 @@ func main() {
 	if strings.TrimSpace(*siteURL) != "" {
 		cfg.SiteURL = strings.TrimRight(strings.TrimSpace(*siteURL), "/")
 	}
-	log.Printf("build theme=%q", cfg.Theme)
 
 	posts, err := core.LoadPosts("posts", cfg.AuthorName)
 	if err != nil {
@@ -54,11 +55,26 @@ func main() {
 		log.Fatal(err)
 	}
 
+	assets, err := fingerprintAssets(filepath.Join(*outDir, "static"), []string{"style.css", "favicon.png"})
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	base := core.NormalizeBasePath(*basePath)
+	stylePath := core.WithBase(*basePath, "/static/style.css")
+	if name := assets["style.css"]; name != "" {
+		stylePath = core.WithBase(*basePath, "/static/"+name)
+	}
+	faviconPath := core.WithBase(*basePath, "/static/favicon.png")
+	if name := assets["favicon.png"]; name != "" {
+		faviconPath = core.WithBase(*basePath, "/static/"+name)
+	}
 
 	if err := renderToFile(filepath.Join(*outDir, "index.html"), "index.html", *basePath, tagURLs, cfg.Theme, core.IndexPageData{
 		Title:           cfg.SiteTitle,
 		BasePath:        base,
+		StylePath:       stylePath,
+		FaviconPath:     faviconPath,
 		SiteDescription: cfg.SiteDescription,
 		SEO:             core.MakeSEO(cfg, cfg.SiteTitle, cfg.SiteDescription, core.WithBase(*basePath, "/"), "website", ""),
 		Posts:           posts,
@@ -67,18 +83,22 @@ func main() {
 	}
 
 	if err := renderToFile(filepath.Join(*outDir, "archives", "index.html"), "archives.html", *basePath, tagURLs, cfg.Theme, core.ArchivesPageData{
-		Title:    "归档",
-		BasePath: base,
-		SEO:      core.MakeSEO(cfg, "归档 - "+cfg.SiteTitle, "按月份浏览历史文章。", core.WithBase(*basePath, "/archives"), "website", ""),
-		Groups:   core.BuildArchiveGroups(posts),
+		Title:       "归档",
+		BasePath:    base,
+		StylePath:   stylePath,
+		FaviconPath: faviconPath,
+		SEO:         core.MakeSEO(cfg, "归档 - "+cfg.SiteTitle, "按月份浏览历史文章。", core.WithBase(*basePath, "/archives"), "website", ""),
+		Groups:      core.BuildArchiveGroups(posts),
 	}); err != nil {
 		log.Fatal(err)
 	}
 
 	if err := renderToFile(filepath.Join(*outDir, "search", "index.html"), "search.html", *basePath, tagURLs, cfg.Theme, core.SearchPageData{
-		Title:    "搜索",
-		BasePath: base,
-		SEO:      core.MakeSEO(cfg, "搜索 - "+cfg.SiteTitle, "在博客中搜索标题、标签和正文。", core.WithBase(*basePath, "/search"), "website", ""),
+		Title:       "搜索",
+		BasePath:    base,
+		StylePath:   stylePath,
+		FaviconPath: faviconPath,
+		SEO:         core.MakeSEO(cfg, "搜索 - "+cfg.SiteTitle, "在博客中搜索标题、标签和正文。", core.WithBase(*basePath, "/search"), "website", ""),
 	}); err != nil {
 		log.Fatal(err)
 	}
@@ -88,12 +108,14 @@ func main() {
 	}
 
 	if err := renderToFile(filepath.Join(*outDir, "tags", "index.html"), "tags.html", *basePath, tagURLs, cfg.Theme, core.TagsPageData{
-		Title:      "标签",
-		BasePath:   base,
-		SEO:        core.MakeSEO(cfg, "标签 - "+cfg.SiteTitle, "按标签浏览文章内容。", core.WithBase(*basePath, "/tags"), "website", ""),
-		CurrentTag: "",
-		Tags:       tagStats,
-		Posts:      posts,
+		Title:       "标签",
+		BasePath:    base,
+		StylePath:   stylePath,
+		FaviconPath: faviconPath,
+		SEO:         core.MakeSEO(cfg, "标签 - "+cfg.SiteTitle, "按标签浏览文章内容。", core.WithBase(*basePath, "/tags"), "website", ""),
+		CurrentTag:  "",
+		Tags:        tagStats,
+		Posts:       posts,
 	}); err != nil {
 		log.Fatal(err)
 	}
@@ -102,12 +124,14 @@ func main() {
 		filtered := core.FilterPostsByTag(posts, stat.Name)
 		slug := tagSlugs[stat.Name]
 		if err := renderToFile(filepath.Join(*outDir, "tags", slug, "index.html"), "tags.html", *basePath, tagURLs, cfg.Theme, core.TagsPageData{
-			Title:      "标签: " + stat.Name,
-			BasePath:   base,
-			SEO:        core.MakeSEO(cfg, "标签: "+stat.Name+" - "+cfg.SiteTitle, "按标签浏览文章内容。", core.WithBase(*basePath, "/tags/"+slug+"/"), "website", ""),
-			CurrentTag: stat.Name,
-			Tags:       tagStats,
-			Posts:      filtered,
+			Title:       "标签: " + stat.Name,
+			BasePath:    base,
+			StylePath:   stylePath,
+			FaviconPath: faviconPath,
+			SEO:         core.MakeSEO(cfg, "标签: "+stat.Name+" - "+cfg.SiteTitle, "按标签浏览文章内容。", core.WithBase(*basePath, "/tags/"+slug+"/"), "website", ""),
+			CurrentTag:  stat.Name,
+			Tags:        tagStats,
+			Posts:       filtered,
 		}); err != nil {
 			log.Fatal(err)
 		}
@@ -115,10 +139,12 @@ func main() {
 
 	for _, post := range posts {
 		if err := renderToFile(filepath.Join(*outDir, "post", post.Slug, "index.html"), "post.html", *basePath, tagURLs, cfg.Theme, core.PostPageData{
-			Title:    post.Title,
-			BasePath: base,
-			SEO:      core.MakeSEO(cfg, post.Title+" - "+cfg.SiteTitle, core.Excerpt(post.Markdown, 140), core.WithBase(*basePath, "/post/"+post.Slug+"/"), "article", post.Date.Format(time.RFC3339)),
-			Post:     post,
+			Title:       post.Title,
+			BasePath:    base,
+			StylePath:   stylePath,
+			FaviconPath: faviconPath,
+			SEO:         core.MakeSEO(cfg, post.Title+" - "+cfg.SiteTitle, core.Excerpt(post.Markdown, 140), core.WithBase(*basePath, "/post/"+post.Slug+"/"), "article", post.Date.Format(time.RFC3339)),
+			Post:        post,
 		}); err != nil {
 			log.Fatal(err)
 		}
@@ -223,4 +249,28 @@ func copyDirIfExists(src, dst string) error {
 		return nil
 	}
 	return copyDir(src, dst)
+}
+
+func fingerprintAssets(staticDir string, names []string) (map[string]string, error) {
+	out := make(map[string]string, len(names))
+	for _, name := range names {
+		src := filepath.Join(staticDir, name)
+		b, err := os.ReadFile(src)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, err
+		}
+		sum := sha256.Sum256(b)
+		hash := fmt.Sprintf("%x", sum[:])[:8]
+		ext := filepath.Ext(name)
+		base := strings.TrimSuffix(name, ext)
+		fingerprinted := fmt.Sprintf("%s.%s%s", base, hash, ext)
+		if err := os.WriteFile(filepath.Join(staticDir, fingerprinted), b, 0644); err != nil {
+			return nil, err
+		}
+		out[name] = fingerprinted
+	}
+	return out, nil
 }
