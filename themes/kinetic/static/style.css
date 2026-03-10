@@ -241,6 +241,56 @@ body {
 
 .snippet { margin-top: 8px; }
 
+mark {
+  background: #fff2a8;
+  color: inherit;
+  border-radius: 4px;
+  padding: 0 2px;
+}
+
+.pagination {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.page-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.page-btn, .page-num {
+  border-radius: 999px;
+  border: 1px solid #f2a3bf;
+  padding: 6px 12px;
+  text-decoration: none;
+  color: #9d3f66;
+  font-weight: 700;
+  font-size: 14px;
+  background: #fff;
+}
+
+.page-num.current {
+  color: #fff;
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.page-btn.disabled {
+  color: #b79aa6;
+  border-color: #f7c9d9;
+  background: #fff7fa;
+}
+
+.comments {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 2px dashed #f2a3bf;
+}
+
 .empty {
   border: 2px dashed #f2a3bf;
   border-radius: 12px;

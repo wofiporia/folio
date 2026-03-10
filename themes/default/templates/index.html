@@ -32,6 +32,18 @@
       <p class="empty">暂无文章，先写一篇吧。</p>
       {{end}}
     </section>
+
+    {{if gt .Pagination.TotalPages 1}}
+    <nav class="pagination" aria-label="Pagination">
+      {{if .Pagination.PrevURL}}<a class="page-btn" href="{{.Pagination.PrevURL}}">Prev</a>{{else}}<span class="page-btn disabled">Prev</span>{{end}}
+      <div class="page-list">
+        {{range .Pagination.Pages}}
+        <a class="page-num {{if .Current}}current{{end}}" href="{{.URL}}">{{.Number}}</a>
+        {{end}}
+      </div>
+      {{if .Pagination.NextURL}}<a class="page-btn" href="{{.Pagination.NextURL}}">Next</a>{{else}}<span class="page-btn disabled">Next</span>{{end}}
+    </nav>
+    {{end}}
   </main>
 </body>
 </html>

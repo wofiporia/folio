@@ -25,6 +25,39 @@
       </header>
       <section class="content">{{.Post.HTML}}</section>
     </article>
+
+    {{if .Comments.Enabled}}
+    <section class="comments">
+      {{if eq .Comments.Provider "giscus"}}
+      <script src="https://giscus.app/client.js"
+        data-repo="{{.Comments.Repo}}"
+        data-repo-id="{{.Comments.RepoID}}"
+        data-category="{{.Comments.Category}}"
+        data-category-id="{{.Comments.CategoryID}}"
+        data-mapping="{{.Comments.Mapping}}"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="{{.Comments.Theme}}"
+        data-lang="{{.Comments.Lang}}"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+      </script>
+      {{end}}
+      {{if eq .Comments.Provider "utterances"}}
+      <script src="https://utteranc.es/client.js"
+        repo="{{.Comments.Repo}}"
+        issue-term="{{.Comments.IssueTerm}}"
+        {{if .Comments.Label}}label="{{.Comments.Label}}"{{end}}
+        theme="{{.Comments.Theme}}"
+        crossorigin="anonymous"
+        async>
+      </script>
+      {{end}}
+    </section>
+    {{end}}
   </main>
 </body>
 </html>

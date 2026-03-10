@@ -17,6 +17,8 @@ import (
 	core "folio/internal/folio"
 )
 
+const pageSize = 10
+
 func main() {
 	outDir := flag.String("out", "dist", "output directory")
 	basePath := flag.String("base-path", "", "base path prefix, e.g. /repo")
@@ -70,16 +72,30 @@ func main() {
 		faviconPath = core.WithBase(*basePath, "/static/"+name)
 	}
 
-	if err := renderToFile(filepath.Join(*outDir, "index.html"), "index.html", *basePath, tagURLs, cfg.Theme, core.IndexPageData{
-		Title:           cfg.SiteTitle,
-		BasePath:        base,
-		StylePath:       stylePath,
-		FaviconPath:     faviconPath,
-		SiteDescription: cfg.SiteDescription,
-		SEO:             core.MakeSEO(cfg, cfg.SiteTitle, cfg.SiteDescription, core.WithBase(*basePath, "/"), "website", ""),
-		Posts:           posts,
-	}); err != nil {
-		log.Fatal(err)
+	_, totalPages, _ := core.PaginatePosts(posts, 1, pageSize)
+	for page := 1; page <= totalPages; page++ {
+		pagePosts, _, currentPage := core.PaginatePosts(posts, page, pageSize)
+		pageTitle := cfg.SiteTitle
+		pagePathForSEO := core.WithBase(*basePath, "/")
+		outPath := filepath.Join(*outDir, "index.html")
+		if currentPage > 1 {
+			pageTitle = fmt.Sprintf("%s - 第 %d 页", cfg.SiteTitle, currentPage)
+			pagePathForSEO = core.WithBase(*basePath, fmt.Sprintf("/page/%d/", currentPage))
+			outPath = filepath.Join(*outDir, "page", fmt.Sprintf("%d", currentPage), "index.html")
+		}
+
+		if err := renderToFile(outPath, "index.html", *basePath, tagURLs, cfg.Theme, core.IndexPageData{
+			Title:           pageTitle,
+			BasePath:        base,
+			StylePath:       stylePath,
+			FaviconPath:     faviconPath,
+			SiteDescription: cfg.SiteDescription,
+			SEO:             core.MakeSEO(cfg, pageTitle, cfg.SiteDescription, pagePathForSEO, "website", ""),
+			Posts:           pagePosts,
+			Pagination:      buildStaticPagination(*basePath, currentPage, totalPages),
+		}); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	if err := renderToFile(filepath.Join(*outDir, "archives", "index.html"), "archives.html", *basePath, tagURLs, cfg.Theme, core.ArchivesPageData{
@@ -145,9 +161,21 @@ func main() {
 			FaviconPath: faviconPath,
 			SEO:         core.MakeSEO(cfg, post.Title+" - "+cfg.SiteTitle, core.Excerpt(post.Markdown, 140), core.WithBase(*basePath, "/post/"+post.Slug+"/"), "article", post.Date.Format(time.RFC3339)),
 			Post:        post,
+			Comments:    core.BuildCommentConfig(cfg, post),
 		}); err != nil {
 			log.Fatal(err)
 		}
+	}
+
+	if err := renderToFile(filepath.Join(*outDir, "404.html"), "404.html", *basePath, tagURLs, cfg.Theme, core.NotFoundPageData{
+		Title:       "页面不存在",
+		BasePath:    base,
+		StylePath:   stylePath,
+		FaviconPath: faviconPath,
+		SEO:         core.MakeSEO(cfg, "页面不存在 - "+cfg.SiteTitle, "你访问的页面不存在或已移动。", core.WithBase(*basePath, "/404.html"), "website", ""),
+		Message:     "你访问的页面不存在或已移动。",
+	}); err != nil {
+		log.Fatal(err)
 	}
 
 	log.Printf("static site generated at %s (posts=%d, tags=%d)", *outDir, len(posts), len(tagStats))
@@ -273,4 +301,37 @@ func fingerprintAssets(staticDir string, names []string) (map[string]string, err
 		out[name] = fingerprinted
 	}
 	return out, nil
+}
+
+func buildStaticPagination(basePath string, currentPage, totalPages int) core.Pagination {
+	p := core.Pagination{
+		CurrentPage: currentPage,
+		TotalPages:  totalPages,
+	}
+	if totalPages <= 1 {
+		return p
+	}
+	if currentPage > 1 {
+		p.PrevURL = staticIndexPageURL(basePath, currentPage-1)
+	}
+	if currentPage < totalPages {
+		p.NextURL = staticIndexPageURL(basePath, currentPage+1)
+	}
+	links := make([]core.PageLink, 0, totalPages)
+	for i := 1; i <= totalPages; i++ {
+		links = append(links, core.PageLink{
+			Number:  i,
+			URL:     staticIndexPageURL(basePath, i),
+			Current: i == currentPage,
+		})
+	}
+	p.Pages = links
+	return p
+}
+
+func staticIndexPageURL(basePath string, page int) string {
+	if page <= 1 {
+		return core.WithBase(basePath, "/")
+	}
+	return core.WithBase(basePath, fmt.Sprintf("/page/%d/", page))
 }
