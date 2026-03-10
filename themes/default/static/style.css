@@ -283,61 +283,6 @@ body {
   box-shadow: 0 0 0 3px rgba(47, 111, 235, 0.16);
 }
 
-.snippet {
-  margin-top: 8px;
-}
-
-mark {
-  background: #fff2a8;
-  color: inherit;
-  border-radius: 4px;
-  padding: 0 2px;
-}
-
-.pagination {
-  margin-top: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.page-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.page-btn,
-.page-num {
-  text-decoration: none;
-  border: 1px solid #d5e2fb;
-  background: #f1f6ff;
-  color: #234892;
-  border-radius: 999px;
-  padding: 5px 11px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.page-num.current {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
-}
-
-.page-btn.disabled {
-  color: #7c8798;
-  background: #eef2f8;
-  border-color: #d8dee9;
-}
-
-.comments {
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-}
-
 .empty {
   background: var(--surface-soft);
   border: 1px dashed #cad2df;

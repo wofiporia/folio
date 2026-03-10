@@ -10,8 +10,8 @@
   <div class="sparkle sparkle-b"></div>
   <main class="container">
     <header class="page-header">
-      <h1>搜索</h1>
-      <p class="subtitle">按标题、标签和正文搜索。</p>
+      <h1>搜索页</h1>
+      <p class="subtitle">输入关键词搜索标题、标签和正文。</p>
       {{template "site_nav_top" .}}
     </header>
 
@@ -40,29 +40,6 @@
           .replace(/'/g, "&#39;");
       }
 
-      function highlight(text, keyword) {
-        if (!keyword) return escapeHtml(text || "");
-        const escaped = escapeHtml(text || "");
-        const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const re = new RegExp(`(${safeKeyword})`, "ig");
-        return escaped.replace(re, "<mark>$1</mark>");
-      }
-
-      function makeSnippet(content, keyword) {
-        const raw = content || "";
-        if (!keyword) return escapeHtml(raw.slice(0, 120));
-        const lower = raw.toLowerCase();
-        const idx = lower.indexOf(keyword.toLowerCase());
-        if (idx === -1) {
-          return highlight(raw.slice(0, 120), keyword);
-        }
-        const start = Math.max(0, idx - 36);
-        const end = Math.min(raw.length, idx + keyword.length + 64);
-        const prefix = start > 0 ? "..." : "";
-        const suffix = end < raw.length ? "..." : "";
-        return prefix + highlight(raw.slice(start, end), keyword) + suffix;
-      }
-
       function render(list, keyword) {
         if (!keyword) {
           meta.textContent = "输入关键词后开始搜索。";
@@ -72,25 +49,20 @@
 
         meta.textContent = `找到 ${list.length} 条结果`;
         if (!list.length) {
-          results.innerHTML = `
-            <div class="empty">
-              <p>没有匹配结果。</p>
-              <p class="meta">试试更短关键词、近义词，或直接按标签搜索。</p>
-            </div>
-          `;
+          results.innerHTML = "<p class='empty'>没有匹配结果。</p>";
           return;
         }
 
         results.innerHTML = list.map((doc) => {
-          const snippet = makeSnippet(doc.content || "", keyword);
-          const tags = (doc.tags || []).map((t) => `<span>#${highlight(t, keyword)}</span>`).join("");
+          const snippet = (doc.content || "").slice(0, 120);
+          const tags = (doc.tags || []).map((t) => `<span>#${escapeHtml(t)}</span>`).join("");
           return `
             <a class="post-card-link" href="${basePath}/post/${encodeURIComponent(doc.slug)}">
               <article class="post-card">
                 <p class="meta">${escapeHtml(doc.date || "")}</p>
-                <h3>${highlight(doc.title || "", keyword)}</h3>
+                <h3>${escapeHtml(doc.title || "")}</h3>
                 ${tags ? `<p class="tags">${tags}</p>` : ""}
-                ${snippet ? `<p class="snippet">${snippet}</p>` : ""}
+                ${snippet ? `<p class="snippet">${escapeHtml(snippet)}...</p>` : ""}
               </article>
             </a>
           `;
@@ -109,28 +81,16 @@
         const keyword = input.value.trim().toLowerCase();
         if (!keyword) {
           render([], "");
-          const url = new URL(window.location.href);
-          url.searchParams.delete("q");
-          history.replaceState({}, "", url);
           return;
         }
         const matched = docs.filter((doc) => {
           const hay = `${doc.title || ""} ${(doc.tags || []).join(" ")} ${doc.content || ""}`.toLowerCase();
           return hay.includes(keyword);
         });
-        render(matched.slice(0, 60), keyword);
-        const url = new URL(window.location.href);
-        url.searchParams.set("q", keyword);
-        history.replaceState({}, "", url);
+        render(matched, keyword);
       };
 
       input.addEventListener("input", run);
-
-      const initial = new URL(window.location.href).searchParams.get("q");
-      if (initial) {
-        input.value = initial;
-        run();
-      }
     })();
   </script>
 </body>
