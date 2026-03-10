@@ -161,6 +161,27 @@ func CanonicalURL(siteURL, path string) string {
 	if site == "" {
 		return path
 	}
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return path
+	}
+	if path == "" {
+		path = "/"
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+
+	// Avoid duplicated base segment, e.g. site=/folio + path=/folio/post/x.
+	if u, err := url.Parse(site); err == nil {
+		base := strings.TrimRight(u.Path, "/")
+		if base != "" {
+			if path == base {
+				path = "/"
+			} else if strings.HasPrefix(path, base+"/") {
+				path = strings.TrimPrefix(path, base)
+			}
+		}
+	}
 	return site + path
 }
 
