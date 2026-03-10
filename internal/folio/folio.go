@@ -55,6 +55,16 @@ type AppConfig struct {
 	DefaultDescription string `json:"default_description"`
 	DefaultOGImage     string `json:"default_og_image"`
 	DefaultOGType      string `json:"default_og_type"`
+	CommentsProvider   string `json:"comments_provider"`
+	CommentsRepo       string `json:"comments_repo"`
+	CommentsRepoID     string `json:"comments_repo_id"`
+	CommentsCategory   string `json:"comments_category"`
+	CommentsCategoryID string `json:"comments_category_id"`
+	CommentsMapping    string `json:"comments_mapping"`
+	CommentsTheme      string `json:"comments_theme"`
+	CommentsLang       string `json:"comments_lang"`
+	CommentsLabel      string `json:"comments_label"`
+	CommentsIssueTerm  string `json:"comments_issue_term"`
 }
 
 type TagStat struct {
@@ -85,6 +95,10 @@ func DefaultConfig() AppConfig {
 		DefaultDescription: "A lightweight blog powered by Go and file storage.",
 		DefaultOGImage:     "",
 		DefaultOGType:      "website",
+		CommentsMapping:    "pathname",
+		CommentsTheme:      "preferred_color_scheme",
+		CommentsLang:       "zh-CN",
+		CommentsIssueTerm:  "pathname",
 	}
 }
 
@@ -106,6 +120,19 @@ func (c *AppConfig) normalize() {
 	}
 	if strings.TrimSpace(c.DefaultOGType) == "" {
 		c.DefaultOGType = d.DefaultOGType
+	}
+	c.CommentsProvider = strings.ToLower(strings.TrimSpace(c.CommentsProvider))
+	if strings.TrimSpace(c.CommentsMapping) == "" {
+		c.CommentsMapping = d.CommentsMapping
+	}
+	if strings.TrimSpace(c.CommentsTheme) == "" {
+		c.CommentsTheme = d.CommentsTheme
+	}
+	if strings.TrimSpace(c.CommentsLang) == "" {
+		c.CommentsLang = d.CommentsLang
+	}
+	if strings.TrimSpace(c.CommentsIssueTerm) == "" {
+		c.CommentsIssueTerm = d.CommentsIssueTerm
 	}
 }
 
@@ -288,6 +315,79 @@ func BuildArchiveGroups(posts []Post) []ArchiveGroup {
 		out = append(out, ArchiveGroup{Label: key, Posts: groups[key]})
 	}
 	return out
+}
+
+func BuildCommentConfig(cfg AppConfig, post Post) CommentConfig {
+	provider := strings.ToLower(strings.TrimSpace(cfg.CommentsProvider))
+	if provider == "" {
+		return CommentConfig{}
+	}
+
+	switch provider {
+	case "giscus":
+		repo := strings.TrimSpace(cfg.CommentsRepo)
+		repoID := strings.TrimSpace(cfg.CommentsRepoID)
+		category := strings.TrimSpace(cfg.CommentsCategory)
+		categoryID := strings.TrimSpace(cfg.CommentsCategoryID)
+		if repo == "" || repoID == "" || category == "" || categoryID == "" {
+			return CommentConfig{}
+		}
+		return CommentConfig{
+			Enabled:    true,
+			Provider:   "giscus",
+			Repo:       repo,
+			RepoID:     repoID,
+			Category:   category,
+			CategoryID: categoryID,
+			Mapping:    strings.TrimSpace(cfg.CommentsMapping),
+			Theme:      strings.TrimSpace(cfg.CommentsTheme),
+			Lang:       strings.TrimSpace(cfg.CommentsLang),
+		}
+	case "utterances":
+		repo := strings.TrimSpace(cfg.CommentsRepo)
+		if repo == "" {
+			return CommentConfig{}
+		}
+		issueTerm := strings.TrimSpace(cfg.CommentsIssueTerm)
+		if issueTerm == "slug" {
+			issueTerm = post.Slug
+		}
+		return CommentConfig{
+			Enabled:   true,
+			Provider:  "utterances",
+			Repo:      repo,
+			IssueTerm: issueTerm,
+			Label:     strings.TrimSpace(cfg.CommentsLabel),
+			Theme:     strings.TrimSpace(cfg.CommentsTheme),
+		}
+	default:
+		return CommentConfig{}
+	}
+}
+
+func PaginatePosts(posts []Post, page, perPage int) ([]Post, int, int) {
+	if perPage <= 0 {
+		perPage = 10
+	}
+	totalPages := 1
+	if len(posts) > 0 {
+		totalPages = (len(posts) + perPage - 1) / perPage
+	}
+	if page < 1 {
+		page = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+	start := (page - 1) * perPage
+	end := start + perPage
+	if start >= len(posts) {
+		return []Post{}, totalPages, page
+	}
+	if end > len(posts) {
+		end = len(posts)
+	}
+	return posts[start:end], totalPages, page
 }
 
 func MakeSearchDocs(posts []Post) []SearchDoc {
