@@ -6,13 +6,14 @@
   {{template "head_common" .}}
   {{if .SEO.PublishedTime}}<meta property="article:published_time" content="{{.SEO.PublishedTime}}">{{end}}
 </head>
-<body>
+<body class="page-post">
   <div class="sparkle sparkle-a"></div>
   <div class="sparkle sparkle-b"></div>
   <main class="container">
     {{template "site_nav_back" .}}
     <article class="post-detail">
       <header>
+        <p class="kicker">Article</p>
         <p class="meta">{{.Post.DateDisplay}}{{if .Post.Author}} · {{.Post.Author}}{{end}}</p>
         <h1>{{.Post.Title}}</h1>
         {{if .Post.Tags}}
@@ -25,6 +26,39 @@
       </header>
       <section class="content">{{.Post.HTML}}</section>
     </article>
+
+    {{if .Comments.Enabled}}
+    <section class="comments">
+      {{if eq .Comments.Provider "giscus"}}
+      <script src="https://giscus.app/client.js"
+        data-repo="{{.Comments.Repo}}"
+        data-repo-id="{{.Comments.RepoID}}"
+        data-category="{{.Comments.Category}}"
+        data-category-id="{{.Comments.CategoryID}}"
+        data-mapping="{{.Comments.Mapping}}"
+        data-strict="0"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="top"
+        data-theme="{{.Comments.Theme}}"
+        data-lang="{{.Comments.Lang}}"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+      </script>
+      {{end}}
+      {{if eq .Comments.Provider "utterances"}}
+      <script src="https://utteranc.es/client.js"
+        repo="{{.Comments.Repo}}"
+        issue-term="{{.Comments.IssueTerm}}"
+        {{if .Comments.Label}}label="{{.Comments.Label}}"{{end}}
+        theme="{{.Comments.Theme}}"
+        crossorigin="anonymous"
+        async>
+      </script>
+      {{end}}
+    </section>
+    {{end}}
   </main>
 </body>
 </html>

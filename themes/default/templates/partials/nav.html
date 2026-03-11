@@ -4,6 +4,7 @@
   <a href="{{.BasePath}}/tags">标签</a>
   <a href="{{.BasePath}}/archives">归档</a>
   <a href="{{.BasePath}}/search">搜索</a>
+  {{if .AuthorGitHub}}<a href="{{.AuthorGitHub}}" target="_blank" rel="noopener noreferrer">作者</a>{{end}}
 </nav>
 {{end}}
 
@@ -13,5 +14,6 @@
   <a href="{{.BasePath}}/tags">标签</a>
   <a href="{{.BasePath}}/archives">归档</a>
   <a href="{{.BasePath}}/search">搜索</a>
+  {{if .AuthorGitHub}}<a href="{{.AuthorGitHub}}" target="_blank" rel="noopener noreferrer">作者</a>{{end}}
 </nav>
 {{end}}

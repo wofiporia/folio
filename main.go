@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 const (
 	postDir  = "posts"
 	cacheTTL = 5 * time.Second
+	pageSize = 10
 )
 
 var postsCache = struct {
@@ -68,18 +70,43 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 func renderHTML(w http.ResponseWriter, tpl *template.Template, data any, page string) {
+	renderHTMLWithStatus(w, tpl, data, page, http.StatusOK)
+}
+
+func renderHTMLWithStatus(w http.ResponseWriter, tpl *template.Template, data any, page string, status int) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
+	w.WriteHeader(status)
 	if err := tpl.Execute(w, data); err != nil {
 		log.Printf("execute %s template error: %v", page, err)
 	}
 }
 
+func renderNotFound(w http.ResponseWriter, r *http.Request) {
+	tpl, err := parseTemplate("", "dynamic", "404.html")
+	if err != nil {
+		http.NotFound(w, r)
+		log.Printf("parse 404 template error: %v", err)
+		return
+	}
+	stylePath, faviconPath := currentAssetPaths("")
+	data := core.NotFoundPageData{
+		Title:        "页面不存在",
+		BasePath:     "",
+		AuthorGitHub: appConfig.AuthorGitHub,
+		StylePath:    stylePath,
+		FaviconPath:  faviconPath,
+		SEO:          core.MakeSEO(appConfig, "页面不存在 - "+appConfig.SiteTitle, "你访问的页面不存在或已移动。", r.URL.Path, "website", ""),
+		Message:      "你访问的页面不存在或已移动。",
+	}
+	renderHTMLWithStatus(w, tpl, data, "404", http.StatusNotFound)
+}
+
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
-		http.NotFound(w, r)
+		renderNotFound(w, r)
 		return
 	}
 
@@ -89,6 +116,8 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("loadPosts error: %v", err)
 		return
 	}
+	currentPage := parsePositiveIntOrDefault(r.URL.Query().Get("page"), 1)
+	visiblePosts, totalPages, currentPage := core.PaginatePosts(posts, currentPage, pageSize)
 
 	tpl, err := parseTemplate("", "dynamic", "index.html")
 	if err != nil {
@@ -97,35 +126,44 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	title := appConfig.SiteTitle
+	pathForSEO := "/"
+	if currentPage > 1 {
+		title = fmt.Sprintf("%s - 第 %d 页", appConfig.SiteTitle, currentPage)
+		pathForSEO = "/?page=" + strconv.Itoa(currentPage)
+	}
+
 	stylePath, faviconPath := currentAssetPaths("")
 	data := core.IndexPageData{
-		Title:           appConfig.SiteTitle,
+		Title:           title,
 		BasePath:        "",
+		AuthorGitHub:    appConfig.AuthorGitHub,
 		StylePath:       stylePath,
 		FaviconPath:     faviconPath,
 		SiteDescription: appConfig.SiteDescription,
-		SEO:             core.MakeSEO(appConfig, appConfig.SiteTitle, appConfig.SiteDescription, "/", "website", ""),
-		Posts:           posts,
+		SEO:             core.MakeSEO(appConfig, title, appConfig.SiteDescription, pathForSEO, "website", ""),
+		Posts:           visiblePosts,
+		Pagination:      buildDynamicPagination("", currentPage, totalPages),
 	}
 	renderHTML(w, tpl, data, "index")
 }
 
 func postHandler(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(r.URL.Path, "/post/") {
-		http.NotFound(w, r)
+		renderNotFound(w, r)
 		return
 	}
 
 	slug := strings.Trim(strings.TrimPrefix(r.URL.Path, "/post/"), "/")
 	if slug == "" || !isValidSlug(slug) {
-		http.NotFound(w, r)
+		renderNotFound(w, r)
 		return
 	}
 
 	post, err := core.LoadPostBySlug(postDir, slug, appConfig.AuthorName)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			http.NotFound(w, r)
+			renderNotFound(w, r)
 			return
 		}
 		http.Error(w, "failed to load post", http.StatusInternalServerError)
@@ -133,7 +171,7 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if post.Draft {
-		http.NotFound(w, r)
+		renderNotFound(w, r)
 		return
 	}
 
@@ -146,10 +184,11 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 
 	stylePath, faviconPath := currentAssetPaths("")
 	data := core.PostPageData{
-		Title:       post.Title,
-		BasePath:    "",
-		StylePath:   stylePath,
-		FaviconPath: faviconPath,
+		Title:        post.Title,
+		BasePath:     "",
+		AuthorGitHub: appConfig.AuthorGitHub,
+		StylePath:    stylePath,
+		FaviconPath:  faviconPath,
 		SEO: core.MakeSEO(
 			appConfig,
 			post.Title+" - "+appConfig.SiteTitle,
@@ -158,14 +197,15 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 			"article",
 			post.Date.Format(time.RFC3339),
 		),
-		Post: post,
+		Post:     post,
+		Comments: core.BuildCommentConfig(appConfig, post),
 	}
 	renderHTML(w, tpl, data, "post")
 }
 
 func tagsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/tags" {
-		http.NotFound(w, r)
+		renderNotFound(w, r)
 		return
 	}
 
@@ -178,7 +218,7 @@ func tagsHandler(w http.ResponseWriter, r *http.Request) {
 
 	currentTag := strings.TrimSpace(r.URL.Query().Get("tag"))
 	if currentTag != "" && !isValidTag(currentTag) {
-		http.NotFound(w, r)
+		renderNotFound(w, r)
 		return
 	}
 
@@ -201,21 +241,22 @@ func tagsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	stylePath, faviconPath := currentAssetPaths("")
 	data := core.TagsPageData{
-		Title:       title,
-		BasePath:    "",
-		StylePath:   stylePath,
-		FaviconPath: faviconPath,
-		SEO:         core.MakeSEO(appConfig, title+" - "+appConfig.SiteTitle, "按标签浏览文章内容。", "/tags", "website", ""),
-		CurrentTag:  currentTag,
-		Tags:        tagStats,
-		Posts:       filtered,
+		Title:        title,
+		BasePath:     "",
+		AuthorGitHub: appConfig.AuthorGitHub,
+		StylePath:    stylePath,
+		FaviconPath:  faviconPath,
+		SEO:          core.MakeSEO(appConfig, title+" - "+appConfig.SiteTitle, "按标签浏览文章内容。", "/tags", "website", ""),
+		CurrentTag:   currentTag,
+		Tags:         tagStats,
+		Posts:        filtered,
 	}
 	renderHTML(w, tpl, data, "tags")
 }
 
 func archivesHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/archives" {
-		http.NotFound(w, r)
+		renderNotFound(w, r)
 		return
 	}
 
@@ -235,19 +276,20 @@ func archivesHandler(w http.ResponseWriter, r *http.Request) {
 
 	stylePath, faviconPath := currentAssetPaths("")
 	data := core.ArchivesPageData{
-		Title:       "归档",
-		BasePath:    "",
-		StylePath:   stylePath,
-		FaviconPath: faviconPath,
-		SEO:         core.MakeSEO(appConfig, "归档 - "+appConfig.SiteTitle, "按月份浏览历史文章。", "/archives", "website", ""),
-		Groups:      core.BuildArchiveGroups(posts),
+		Title:        "归档",
+		BasePath:     "",
+		AuthorGitHub: appConfig.AuthorGitHub,
+		StylePath:    stylePath,
+		FaviconPath:  faviconPath,
+		SEO:          core.MakeSEO(appConfig, "归档 - "+appConfig.SiteTitle, "按月份浏览历史文章。", "/archives", "website", ""),
+		Groups:       core.BuildArchiveGroups(posts),
 	}
 	renderHTML(w, tpl, data, "archives")
 }
 
 func searchHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/search" {
-		http.NotFound(w, r)
+		renderNotFound(w, r)
 		return
 	}
 
@@ -260,18 +302,19 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 
 	stylePath, faviconPath := currentAssetPaths("")
 	data := core.SearchPageData{
-		Title:       "搜索",
-		BasePath:    "",
-		StylePath:   stylePath,
-		FaviconPath: faviconPath,
-		SEO:         core.MakeSEO(appConfig, "搜索 - "+appConfig.SiteTitle, "在博客中搜索标题、标签和正文。", "/search", "website", ""),
+		Title:        "搜索",
+		BasePath:     "",
+		AuthorGitHub: appConfig.AuthorGitHub,
+		StylePath:    stylePath,
+		FaviconPath:  faviconPath,
+		SEO:          core.MakeSEO(appConfig, "搜索 - "+appConfig.SiteTitle, "在博客中搜索标题、标签和正文。", "/search", "website", ""),
 	}
 	renderHTML(w, tpl, data, "search")
 }
 
 func searchIndexHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/search-index.json" {
-		http.NotFound(w, r)
+		renderNotFound(w, r)
 		return
 	}
 
@@ -296,17 +339,17 @@ func parseTemplate(basePath, tagMode, page string) (*template.Template, error) {
 
 func staticHandler(w http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(r.URL.Path, "/static/") {
-		http.NotFound(w, r)
+		renderNotFound(w, r)
 		return
 	}
 	rel := strings.TrimPrefix(path.Clean("/"+strings.TrimPrefix(r.URL.Path, "/static/")), "/")
 	if rel == "" || rel == "." {
-		http.NotFound(w, r)
+		renderNotFound(w, r)
 		return
 	}
 	p := core.ResolveStaticPath(appConfig.Theme, rel)
 	if p == "" {
-		http.NotFound(w, r)
+		renderNotFound(w, r)
 		return
 	}
 	http.ServeFile(w, r, p)
@@ -379,4 +422,45 @@ func isValidTag(tag string) bool {
 		}
 	}
 	return true
+}
+
+func parsePositiveIntOrDefault(raw string, def int) int {
+	n, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || n < 1 {
+		return def
+	}
+	return n
+}
+
+func buildDynamicPagination(basePath string, currentPage, totalPages int) core.Pagination {
+	p := core.Pagination{
+		CurrentPage: currentPage,
+		TotalPages:  totalPages,
+	}
+	if totalPages <= 1 {
+		return p
+	}
+	if currentPage > 1 {
+		p.PrevURL = dynamicIndexPageURL(basePath, currentPage-1)
+	}
+	if currentPage < totalPages {
+		p.NextURL = dynamicIndexPageURL(basePath, currentPage+1)
+	}
+	links := make([]core.PageLink, 0, totalPages)
+	for i := 1; i <= totalPages; i++ {
+		links = append(links, core.PageLink{
+			Number:  i,
+			URL:     dynamicIndexPageURL(basePath, i),
+			Current: i == currentPage,
+		})
+	}
+	p.Pages = links
+	return p
+}
+
+func dynamicIndexPageURL(basePath string, page int) string {
+	if page <= 1 {
+		return core.WithBase(basePath, "/")
+	}
+	return core.WithBase(basePath, "/?page="+strconv.Itoa(page))
 }

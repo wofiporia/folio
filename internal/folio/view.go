@@ -8,48 +8,94 @@ import (
 type IndexPageData struct {
 	Title           string
 	BasePath        string
+	AuthorGitHub    string
 	StylePath       string
 	FaviconPath     string
 	SiteDescription string
 	SEO             SEO
 	Posts           []Post
+	Pagination      Pagination
 }
 
 type PostPageData struct {
-	Title       string
-	BasePath    string
-	StylePath   string
-	FaviconPath string
-	SEO         SEO
-	Post        Post
+	Title        string
+	BasePath     string
+	AuthorGitHub string
+	StylePath    string
+	FaviconPath  string
+	SEO          SEO
+	Post         Post
+	Comments     CommentConfig
 }
 
 type TagsPageData struct {
-	Title       string
-	BasePath    string
-	StylePath   string
-	FaviconPath string
-	SEO         SEO
-	CurrentTag  string
-	Tags        []TagStat
-	Posts       []Post
+	Title        string
+	BasePath     string
+	AuthorGitHub string
+	StylePath    string
+	FaviconPath  string
+	SEO          SEO
+	CurrentTag   string
+	Tags         []TagStat
+	Posts        []Post
 }
 
 type ArchivesPageData struct {
-	Title       string
-	BasePath    string
-	StylePath   string
-	FaviconPath string
-	SEO         SEO
-	Groups      []ArchiveGroup
+	Title        string
+	BasePath     string
+	AuthorGitHub string
+	StylePath    string
+	FaviconPath  string
+	SEO          SEO
+	Groups       []ArchiveGroup
 }
 
 type SearchPageData struct {
-	Title       string
-	BasePath    string
-	StylePath   string
-	FaviconPath string
-	SEO         SEO
+	Title        string
+	BasePath     string
+	AuthorGitHub string
+	StylePath    string
+	FaviconPath  string
+	SEO          SEO
+}
+
+type NotFoundPageData struct {
+	Title        string
+	BasePath     string
+	AuthorGitHub string
+	StylePath    string
+	FaviconPath  string
+	SEO          SEO
+	Message      string
+}
+
+type PageLink struct {
+	Number  int
+	URL     string
+	Current bool
+}
+
+type Pagination struct {
+	CurrentPage int
+	TotalPages  int
+	PrevURL     string
+	NextURL     string
+	Pages       []PageLink
+}
+
+type CommentConfig struct {
+	Enabled        bool
+	Provider       string
+	Repo           string
+	RepoID         string
+	Category       string
+	CategoryID     string
+	Mapping        string
+	Theme          string
+	Lang           string
+	Label          string
+	IssueTerm      string
+	DiscussionTerm string
 }
 
 func ParseTemplate(theme, pageRel string, tagResolver func(string) string) (*template.Template, error) {
