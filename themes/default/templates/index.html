@@ -5,7 +5,7 @@
   <meta property="og:title" content="{{.Title}}">
   {{template "head_common" .}}
 </head>
-<body>
+<body class="page-home">
   <main class="container">
     <header class="page-header">
       <h1>{{.SEO.SiteName}}</h1>
@@ -19,7 +19,7 @@
       <a class="post-card-link" href="{{$.BasePath}}/post/{{.Slug}}">
         <article class="post-card">
           <h2>{{.Title}}</h2>
-          <p class="meta">{{.DateDisplay}}{{if .Author}} · {{.Author}}{{end}}</p>
+          <p class="meta">{{.DateDisplay}}{{if .Author}} &middot; {{.Author}}{{end}}</p>
           {{if .Tags}}
           <p class="tags">
             {{range .Tags}}<span>#{{.}}</span>{{end}}
@@ -47,3 +47,4 @@
   </main>
 </body>
 </html>
+
