@@ -5,37 +5,78 @@
   <meta property="og:title" content="{{.Title}} - {{.SEO.SiteName}}">
   {{template "head_common" .}}
 </head>
-<body>
+<body class="page-tags" data-base-path="{{.BasePath}}">
   <div class="sparkle sparkle-a"></div>
   <div class="sparkle sparkle-b"></div>
   <main class="container">
-    <header class="page-header">
-      <h1>标签页</h1>
-      <p class="subtitle">按主题快速浏览相关内容。</p>
+    <header class="page-header tags-hero">
+      <p class="kicker">Discover</p>
+      <h1>标签速览</h1>
+      <p class="subtitle">先筛主题，再读文章。节奏更快，也更聚焦。</p>
       {{template "site_nav_top" .}}
     </header>
 
-    <section class="chip-list">
-      <a class="chip {{if eq .CurrentTag ""}}active{{end}}" href="{{.BasePath}}/tags">全部</a>
-      {{range .Tags}}
-      <a class="chip {{if eq $.CurrentTag .Name}}active{{end}}" href="{{.URL}}">{{.Name}} ({{.Count}})</a>
-      {{end}}
-    </section>
+    <section class="layout-split tags-layout">
+      <aside class="side-panel tags-filter">
+        <h3>主题过滤</h3>
+        <p class="meta tags-filter-meta">共 {{len .Tags}} 个标签</p>
+        <div class="chip-list tags-chip-list">
+          <a class="chip {{if eq .CurrentTag ""}}active{{end}}" href="{{.BasePath}}/tags">全部</a>
+          {{range .Tags}}
+          <a class="chip {{if eq $.CurrentTag .Name}}active{{end}}" href="{{.URL}}">{{.Name}} ({{.Count}})</a>
+          {{end}}
+        </div>
+      </aside>
 
-    <section class="post-grid">
-      {{if .Posts}}
-      {{range .Posts}}
-      <a class="post-card-link" href="{{$.BasePath}}/post/{{.Slug}}">
-        <article class="post-card">
-          <p class="meta">{{.DateDisplay}}</p>
-          <h3>{{.Title}}</h3>
-        </article>
-      </a>
-      {{end}}
-      {{else}}
-      <p class="empty">该标签下暂无文章。</p>
-      {{end}}
+      <div class="main-panel tags-main">
+        <section class="tags-focus">
+          {{if .CurrentTag}}
+          <p class="kicker">Current Tag</p>
+          <h2>#{{.CurrentTag}}</h2>
+          <p class="meta">当前结果：{{len .Posts}} 篇</p>
+          {{else}}
+          <p class="kicker">All Tags</p>
+          <h2>全部文章</h2>
+          <p class="meta">当前结果：{{len .Posts}} 篇</p>
+          {{end}}
+        </section>
+
+        <section class="post-grid">
+          {{if .Posts}}
+          {{range .Posts}}
+          <a class="post-card-link" href="{{$.BasePath}}/post/{{.Slug}}">
+            <article class="post-card">
+              <p class="meta">{{.DateDisplay}}</p>
+              <h3>{{.Title}}</h3>
+            </article>
+          </a>
+          {{end}}
+          {{else}}
+          <p class="empty">这个标签下还没有内容。</p>
+          {{end}}
+        </section>
+      </div>
     </section>
   </main>
+
+  <script>
+    (function () {
+      const body = document.body;
+      const basePath = body.dataset.basePath || "";
+      const ref = document.referrer;
+      let fromTagPage = false;
+
+      try {
+        if (ref) {
+          const prev = new URL(ref);
+          const cur = new URL(window.location.href);
+          const prefix = `${cur.origin}${basePath}/tags`;
+          fromTagPage = prev.href.startsWith(prefix);
+        }
+      } catch (_) {}
+
+      body.classList.add(fromTagPage ? "tags-no-enter" : "tags-enter");
+    })();
+  </script>
 </body>
 </html>

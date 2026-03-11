@@ -3,6 +3,7 @@
   "site_description": "一个基于 Go 和文件系统的轻量博客。",
   "site_url": "https://wofiporia.github.io/folio",
   "author_name": "Wofiporia",
+  "author_github": "https://github.com/wofiporia",
   "theme": "kinetic",
   "default_description": "这里什么都没有写。",
   "default_og_image": "",

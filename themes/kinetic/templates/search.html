@@ -5,27 +5,36 @@
   <meta property="og:title" content="{{.Title}} - {{.SEO.SiteName}}">
   {{template "head_common" .}}
 </head>
-<body>
+<body class="page-search">
   <div class="sparkle sparkle-a"></div>
   <div class="sparkle sparkle-b"></div>
   <main class="container">
     <header class="page-header">
-      <h1>搜索</h1>
-      <p class="subtitle">按标题、标签和正文搜索。</p>
+      <p class="kicker">Search</p>
+      <h1>全文搜索</h1>
+      <p class="subtitle">输入关键词后，结果会在右侧实时更新。</p>
       {{template "site_nav_top" .}}
     </header>
 
-    <section class="search-panel" data-base-path="{{.BasePath}}">
-      <input id="q" class="search-input" type="search" placeholder="输入关键词（标题、标签、正文）">
-      <p id="search-meta" class="meta">输入关键词后开始搜索。</p>
-      <div id="search-results" class="post-grid"></div>
+    <section class="layout-split search-layout" data-base-path="{{.BasePath}}">
+      <aside class="side-panel">
+        <h3>检索建议</h3>
+        <p>优先用短词，如技术名词或标签名。</p>
+        <p class="meta">例如：Go、SQL、日志、部署。</p>
+      </aside>
+
+      <div class="main-panel search-panel">
+        <input id="q" class="search-input" type="search" placeholder="输入关键词，例如：Go、部署、日志">
+        <p id="search-meta" class="meta">输入关键词后开始搜索。</p>
+        <div id="search-results" class="post-grid"></div>
+      </div>
     </section>
   </main>
 
   <script>
     (async function () {
-      const panel = document.querySelector(".search-panel");
-      const basePath = panel?.dataset.basePath || "";
+      const shell = document.querySelector(".search-layout");
+      const basePath = shell?.dataset.basePath || "";
       const input = document.getElementById("q");
       const meta = document.getElementById("search-meta");
       const results = document.getElementById("search-results");
@@ -53,9 +62,7 @@
         if (!keyword) return escapeHtml(raw.slice(0, 120));
         const lower = raw.toLowerCase();
         const idx = lower.indexOf(keyword.toLowerCase());
-        if (idx === -1) {
-          return highlight(raw.slice(0, 120), keyword);
-        }
+        if (idx === -1) return highlight(raw.slice(0, 120), keyword);
         const start = Math.max(0, idx - 36);
         const end = Math.min(raw.length, idx + keyword.length + 64);
         const prefix = start > 0 ? "..." : "";
@@ -75,7 +82,7 @@
           results.innerHTML = `
             <div class="empty">
               <p>没有匹配结果。</p>
-              <p class="meta">试试更短关键词、近义词，或直接按标签搜索。</p>
+              <p class="meta">可以尝试更短关键词、近义词，或按标签搜索。</p>
             </div>
           `;
           return;
@@ -125,7 +132,6 @@
       };
 
       input.addEventListener("input", run);
-
       const initial = new URL(window.location.href).searchParams.get("q");
       if (initial) {
         input.value = initial;

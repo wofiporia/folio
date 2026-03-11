@@ -87,6 +87,7 @@ func main() {
 		if err := renderToFile(outPath, "index.html", *basePath, tagURLs, cfg.Theme, core.IndexPageData{
 			Title:           pageTitle,
 			BasePath:        base,
+			AuthorGitHub:    cfg.AuthorGitHub,
 			StylePath:       stylePath,
 			FaviconPath:     faviconPath,
 			SiteDescription: cfg.SiteDescription,
@@ -99,22 +100,24 @@ func main() {
 	}
 
 	if err := renderToFile(filepath.Join(*outDir, "archives", "index.html"), "archives.html", *basePath, tagURLs, cfg.Theme, core.ArchivesPageData{
-		Title:       "归档",
-		BasePath:    base,
-		StylePath:   stylePath,
-		FaviconPath: faviconPath,
-		SEO:         core.MakeSEO(cfg, "归档 - "+cfg.SiteTitle, "按月份浏览历史文章。", core.WithBase(*basePath, "/archives"), "website", ""),
-		Groups:      core.BuildArchiveGroups(posts),
+		Title:        "归档",
+		BasePath:     base,
+		AuthorGitHub: cfg.AuthorGitHub,
+		StylePath:    stylePath,
+		FaviconPath:  faviconPath,
+		SEO:          core.MakeSEO(cfg, "归档 - "+cfg.SiteTitle, "按月份浏览历史文章。", core.WithBase(*basePath, "/archives"), "website", ""),
+		Groups:       core.BuildArchiveGroups(posts),
 	}); err != nil {
 		log.Fatal(err)
 	}
 
 	if err := renderToFile(filepath.Join(*outDir, "search", "index.html"), "search.html", *basePath, tagURLs, cfg.Theme, core.SearchPageData{
-		Title:       "搜索",
-		BasePath:    base,
-		StylePath:   stylePath,
-		FaviconPath: faviconPath,
-		SEO:         core.MakeSEO(cfg, "搜索 - "+cfg.SiteTitle, "在博客中搜索标题、标签和正文。", core.WithBase(*basePath, "/search"), "website", ""),
+		Title:        "搜索",
+		BasePath:     base,
+		AuthorGitHub: cfg.AuthorGitHub,
+		StylePath:    stylePath,
+		FaviconPath:  faviconPath,
+		SEO:          core.MakeSEO(cfg, "搜索 - "+cfg.SiteTitle, "在博客中搜索标题、标签和正文。", core.WithBase(*basePath, "/search"), "website", ""),
 	}); err != nil {
 		log.Fatal(err)
 	}
@@ -124,14 +127,15 @@ func main() {
 	}
 
 	if err := renderToFile(filepath.Join(*outDir, "tags", "index.html"), "tags.html", *basePath, tagURLs, cfg.Theme, core.TagsPageData{
-		Title:       "标签",
-		BasePath:    base,
-		StylePath:   stylePath,
-		FaviconPath: faviconPath,
-		SEO:         core.MakeSEO(cfg, "标签 - "+cfg.SiteTitle, "按标签浏览文章内容。", core.WithBase(*basePath, "/tags"), "website", ""),
-		CurrentTag:  "",
-		Tags:        tagStats,
-		Posts:       posts,
+		Title:        "标签",
+		BasePath:     base,
+		AuthorGitHub: cfg.AuthorGitHub,
+		StylePath:    stylePath,
+		FaviconPath:  faviconPath,
+		SEO:          core.MakeSEO(cfg, "标签 - "+cfg.SiteTitle, "按标签浏览文章内容。", core.WithBase(*basePath, "/tags"), "website", ""),
+		CurrentTag:   "",
+		Tags:         tagStats,
+		Posts:        posts,
 	}); err != nil {
 		log.Fatal(err)
 	}
@@ -140,14 +144,15 @@ func main() {
 		filtered := core.FilterPostsByTag(posts, stat.Name)
 		slug := tagSlugs[stat.Name]
 		if err := renderToFile(filepath.Join(*outDir, "tags", slug, "index.html"), "tags.html", *basePath, tagURLs, cfg.Theme, core.TagsPageData{
-			Title:       "标签: " + stat.Name,
-			BasePath:    base,
-			StylePath:   stylePath,
-			FaviconPath: faviconPath,
-			SEO:         core.MakeSEO(cfg, "标签: "+stat.Name+" - "+cfg.SiteTitle, "按标签浏览文章内容。", core.WithBase(*basePath, "/tags/"+slug+"/"), "website", ""),
-			CurrentTag:  stat.Name,
-			Tags:        tagStats,
-			Posts:       filtered,
+			Title:        "标签: " + stat.Name,
+			BasePath:     base,
+			AuthorGitHub: cfg.AuthorGitHub,
+			StylePath:    stylePath,
+			FaviconPath:  faviconPath,
+			SEO:          core.MakeSEO(cfg, "标签: "+stat.Name+" - "+cfg.SiteTitle, "按标签浏览文章内容。", core.WithBase(*basePath, "/tags/"+slug+"/"), "website", ""),
+			CurrentTag:   stat.Name,
+			Tags:         tagStats,
+			Posts:        filtered,
 		}); err != nil {
 			log.Fatal(err)
 		}
@@ -155,25 +160,27 @@ func main() {
 
 	for _, post := range posts {
 		if err := renderToFile(filepath.Join(*outDir, "post", post.Slug, "index.html"), "post.html", *basePath, tagURLs, cfg.Theme, core.PostPageData{
-			Title:       post.Title,
-			BasePath:    base,
-			StylePath:   stylePath,
-			FaviconPath: faviconPath,
-			SEO:         core.MakeSEO(cfg, post.Title+" - "+cfg.SiteTitle, core.Excerpt(post.Markdown, 140), core.WithBase(*basePath, "/post/"+post.Slug+"/"), "article", post.Date.Format(time.RFC3339)),
-			Post:        post,
-			Comments:    core.BuildCommentConfig(cfg, post),
+			Title:        post.Title,
+			BasePath:     base,
+			AuthorGitHub: cfg.AuthorGitHub,
+			StylePath:    stylePath,
+			FaviconPath:  faviconPath,
+			SEO:          core.MakeSEO(cfg, post.Title+" - "+cfg.SiteTitle, core.Excerpt(post.Markdown, 140), core.WithBase(*basePath, "/post/"+post.Slug+"/"), "article", post.Date.Format(time.RFC3339)),
+			Post:         post,
+			Comments:     core.BuildCommentConfig(cfg, post),
 		}); err != nil {
 			log.Fatal(err)
 		}
 	}
 
 	if err := renderToFile(filepath.Join(*outDir, "404.html"), "404.html", *basePath, tagURLs, cfg.Theme, core.NotFoundPageData{
-		Title:       "页面不存在",
-		BasePath:    base,
-		StylePath:   stylePath,
-		FaviconPath: faviconPath,
-		SEO:         core.MakeSEO(cfg, "页面不存在 - "+cfg.SiteTitle, "你访问的页面不存在或已移动。", core.WithBase(*basePath, "/404.html"), "website", ""),
-		Message:     "你访问的页面不存在或已移动。",
+		Title:        "页面不存在",
+		BasePath:     base,
+		AuthorGitHub: cfg.AuthorGitHub,
+		StylePath:    stylePath,
+		FaviconPath:  faviconPath,
+		SEO:          core.MakeSEO(cfg, "页面不存在 - "+cfg.SiteTitle, "你访问的页面不存在或已移动。", core.WithBase(*basePath, "/404.html"), "website", ""),
+		Message:      "你访问的页面不存在或已移动。",
 	}); err != nil {
 		log.Fatal(err)
 	}

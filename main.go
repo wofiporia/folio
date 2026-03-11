@@ -93,12 +93,13 @@ func renderNotFound(w http.ResponseWriter, r *http.Request) {
 	}
 	stylePath, faviconPath := currentAssetPaths("")
 	data := core.NotFoundPageData{
-		Title:       "页面不存在",
-		BasePath:    "",
-		StylePath:   stylePath,
-		FaviconPath: faviconPath,
-		SEO:         core.MakeSEO(appConfig, "页面不存在 - "+appConfig.SiteTitle, "你访问的页面不存在或已移动。", r.URL.Path, "website", ""),
-		Message:     "你访问的页面不存在或已移动。",
+		Title:        "页面不存在",
+		BasePath:     "",
+		AuthorGitHub: appConfig.AuthorGitHub,
+		StylePath:    stylePath,
+		FaviconPath:  faviconPath,
+		SEO:          core.MakeSEO(appConfig, "页面不存在 - "+appConfig.SiteTitle, "你访问的页面不存在或已移动。", r.URL.Path, "website", ""),
+		Message:      "你访问的页面不存在或已移动。",
 	}
 	renderHTMLWithStatus(w, tpl, data, "404", http.StatusNotFound)
 }
@@ -136,6 +137,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	data := core.IndexPageData{
 		Title:           title,
 		BasePath:        "",
+		AuthorGitHub:    appConfig.AuthorGitHub,
 		StylePath:       stylePath,
 		FaviconPath:     faviconPath,
 		SiteDescription: appConfig.SiteDescription,
@@ -182,10 +184,11 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 
 	stylePath, faviconPath := currentAssetPaths("")
 	data := core.PostPageData{
-		Title:       post.Title,
-		BasePath:    "",
-		StylePath:   stylePath,
-		FaviconPath: faviconPath,
+		Title:        post.Title,
+		BasePath:     "",
+		AuthorGitHub: appConfig.AuthorGitHub,
+		StylePath:    stylePath,
+		FaviconPath:  faviconPath,
 		SEO: core.MakeSEO(
 			appConfig,
 			post.Title+" - "+appConfig.SiteTitle,
@@ -238,14 +241,15 @@ func tagsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	stylePath, faviconPath := currentAssetPaths("")
 	data := core.TagsPageData{
-		Title:       title,
-		BasePath:    "",
-		StylePath:   stylePath,
-		FaviconPath: faviconPath,
-		SEO:         core.MakeSEO(appConfig, title+" - "+appConfig.SiteTitle, "按标签浏览文章内容。", "/tags", "website", ""),
-		CurrentTag:  currentTag,
-		Tags:        tagStats,
-		Posts:       filtered,
+		Title:        title,
+		BasePath:     "",
+		AuthorGitHub: appConfig.AuthorGitHub,
+		StylePath:    stylePath,
+		FaviconPath:  faviconPath,
+		SEO:          core.MakeSEO(appConfig, title+" - "+appConfig.SiteTitle, "按标签浏览文章内容。", "/tags", "website", ""),
+		CurrentTag:   currentTag,
+		Tags:         tagStats,
+		Posts:        filtered,
 	}
 	renderHTML(w, tpl, data, "tags")
 }
@@ -272,12 +276,13 @@ func archivesHandler(w http.ResponseWriter, r *http.Request) {
 
 	stylePath, faviconPath := currentAssetPaths("")
 	data := core.ArchivesPageData{
-		Title:       "归档",
-		BasePath:    "",
-		StylePath:   stylePath,
-		FaviconPath: faviconPath,
-		SEO:         core.MakeSEO(appConfig, "归档 - "+appConfig.SiteTitle, "按月份浏览历史文章。", "/archives", "website", ""),
-		Groups:      core.BuildArchiveGroups(posts),
+		Title:        "归档",
+		BasePath:     "",
+		AuthorGitHub: appConfig.AuthorGitHub,
+		StylePath:    stylePath,
+		FaviconPath:  faviconPath,
+		SEO:          core.MakeSEO(appConfig, "归档 - "+appConfig.SiteTitle, "按月份浏览历史文章。", "/archives", "website", ""),
+		Groups:       core.BuildArchiveGroups(posts),
 	}
 	renderHTML(w, tpl, data, "archives")
 }
@@ -297,11 +302,12 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 
 	stylePath, faviconPath := currentAssetPaths("")
 	data := core.SearchPageData{
-		Title:       "搜索",
-		BasePath:    "",
-		StylePath:   stylePath,
-		FaviconPath: faviconPath,
-		SEO:         core.MakeSEO(appConfig, "搜索 - "+appConfig.SiteTitle, "在博客中搜索标题、标签和正文。", "/search", "website", ""),
+		Title:        "搜索",
+		BasePath:     "",
+		AuthorGitHub: appConfig.AuthorGitHub,
+		StylePath:    stylePath,
+		FaviconPath:  faviconPath,
+		SEO:          core.MakeSEO(appConfig, "搜索 - "+appConfig.SiteTitle, "在博客中搜索标题、标签和正文。", "/search", "website", ""),
 	}
 	renderHTML(w, tpl, data, "search")
 }

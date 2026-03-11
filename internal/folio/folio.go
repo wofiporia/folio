@@ -51,6 +51,7 @@ type AppConfig struct {
 	SiteDescription    string `json:"site_description"`
 	SiteURL            string `json:"site_url"`
 	AuthorName         string `json:"author_name"`
+	AuthorGitHub       string `json:"author_github"`
 	Theme              string `json:"theme"`
 	DefaultDescription string `json:"default_description"`
 	DefaultOGImage     string `json:"default_og_image"`
@@ -91,6 +92,7 @@ func DefaultConfig() AppConfig {
 		SiteDescription:    "A lightweight blog powered by Go and file storage.",
 		SiteURL:            "",
 		AuthorName:         "Anonymous",
+		AuthorGitHub:       "",
 		Theme:              "default",
 		DefaultDescription: "A lightweight blog powered by Go and file storage.",
 		DefaultOGImage:     "",
@@ -113,6 +115,12 @@ func (c *AppConfig) normalize() {
 	c.SiteURL = strings.TrimRight(strings.TrimSpace(c.SiteURL), "/")
 	if strings.TrimSpace(c.AuthorName) == "" {
 		c.AuthorName = d.AuthorName
+	}
+	c.AuthorGitHub = strings.TrimSpace(c.AuthorGitHub)
+	if c.AuthorGitHub != "" &&
+		!strings.HasPrefix(c.AuthorGitHub, "http://") &&
+		!strings.HasPrefix(c.AuthorGitHub, "https://") {
+		c.AuthorGitHub = "https://github.com/" + strings.Trim(c.AuthorGitHub, "/")
 	}
 	c.Theme = NormalizeThemeName(c.Theme)
 	if strings.TrimSpace(c.DefaultDescription) == "" {
