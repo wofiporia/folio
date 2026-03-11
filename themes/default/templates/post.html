@@ -8,13 +8,13 @@
   <meta property="article:published_time" content="{{.SEO.PublishedTime}}">
   {{end}}
 </head>
-<body>
+<body class="page-post">
   <main class="container">
     {{template "site_nav_back" .}}
     <article class="post-detail">
       <header>
         <h1>{{.Post.Title}}</h1>
-        <p class="meta">{{.Post.DateDisplay}}{{if .Post.Author}} · {{.Post.Author}}{{end}}</p>
+        <p class="meta">{{.Post.DateDisplay}}{{if .Post.Author}} &middot; {{.Post.Author}}{{end}}</p>
         {{if .Post.Tags}}
         <p class="tags">
           {{range .Post.Tags}}
@@ -61,3 +61,4 @@
   </main>
 </body>
 </html>
+
