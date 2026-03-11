@@ -8,6 +8,7 @@ import (
 type IndexPageData struct {
 	Title           string
 	BasePath        string
+	AuthorGitHub    string
 	StylePath       string
 	FaviconPath     string
 	SiteDescription string
@@ -17,50 +18,55 @@ type IndexPageData struct {
 }
 
 type PostPageData struct {
-	Title       string
-	BasePath    string
-	StylePath   string
-	FaviconPath string
-	SEO         SEO
-	Post        Post
-	Comments    CommentConfig
+	Title        string
+	BasePath     string
+	AuthorGitHub string
+	StylePath    string
+	FaviconPath  string
+	SEO          SEO
+	Post         Post
+	Comments     CommentConfig
 }
 
 type TagsPageData struct {
-	Title       string
-	BasePath    string
-	StylePath   string
-	FaviconPath string
-	SEO         SEO
-	CurrentTag  string
-	Tags        []TagStat
-	Posts       []Post
+	Title        string
+	BasePath     string
+	AuthorGitHub string
+	StylePath    string
+	FaviconPath  string
+	SEO          SEO
+	CurrentTag   string
+	Tags         []TagStat
+	Posts        []Post
 }
 
 type ArchivesPageData struct {
-	Title       string
-	BasePath    string
-	StylePath   string
-	FaviconPath string
-	SEO         SEO
-	Groups      []ArchiveGroup
+	Title        string
+	BasePath     string
+	AuthorGitHub string
+	StylePath    string
+	FaviconPath  string
+	SEO          SEO
+	Groups       []ArchiveGroup
 }
 
 type SearchPageData struct {
-	Title       string
-	BasePath    string
-	StylePath   string
-	FaviconPath string
-	SEO         SEO
+	Title        string
+	BasePath     string
+	AuthorGitHub string
+	StylePath    string
+	FaviconPath  string
+	SEO          SEO
 }
 
 type NotFoundPageData struct {
-	Title       string
-	BasePath    string
-	StylePath   string
-	FaviconPath string
-	SEO         SEO
-	Message     string
+	Title        string
+	BasePath     string
+	AuthorGitHub string
+	StylePath    string
+	FaviconPath  string
+	SEO          SEO
+	Message      string
 }
 
 type PageLink struct {

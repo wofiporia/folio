@@ -6,13 +6,14 @@
   {{template "head_common" .}}
   {{if .SEO.PublishedTime}}<meta property="article:published_time" content="{{.SEO.PublishedTime}}">{{end}}
 </head>
-<body>
+<body class="page-post">
   <div class="sparkle sparkle-a"></div>
   <div class="sparkle sparkle-b"></div>
   <main class="container">
     {{template "site_nav_back" .}}
     <article class="post-detail">
       <header>
+        <p class="kicker">Article</p>
         <p class="meta">{{.Post.DateDisplay}}{{if .Post.Author}} · {{.Post.Author}}{{end}}</p>
         <h1>{{.Post.Title}}</h1>
         {{if .Post.Tags}}

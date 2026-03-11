@@ -5,35 +5,46 @@
   <meta property="og:title" content="{{.Title}} - {{.SEO.SiteName}}">
   {{template "head_common" .}}
 </head>
-<body>
+<body class="page-archives">
   <div class="sparkle sparkle-a"></div>
   <div class="sparkle sparkle-b"></div>
   <main class="container">
     <header class="page-header">
-      <h1>归档页</h1>
-      <p class="subtitle">按时间顺序查看历史文章。</p>
+      <p class="kicker">Timeline</p>
+      <h1>归档时间线</h1>
+      <p class="subtitle">左侧说明，右侧年份分组，一次看完整个历史。</p>
       {{template "site_nav_top" .}}
     </header>
 
-    {{if .Groups}}
-    <section class="archive-stack">
-      {{range .Groups}}
-      <article class="archive-group">
-        <h2>{{.Label}}</h2>
-        <ul>
-          {{range .Posts}}
-          <li>
-            <span class="meta">{{.DateDisplay}}</span>
-            <a href="{{$.BasePath}}/post/{{.Slug}}">{{.Title}}</a>
-          </li>
+    <section class="layout-split">
+      <aside class="side-panel">
+        <h3>阅读方式</h3>
+        <p>从最新月份开始倒序回看。</p>
+        <p class="meta">每组内按发布日期排列。</p>
+      </aside>
+
+      <div class="main-panel">
+        {{if .Groups}}
+        <section class="archive-stack">
+          {{range .Groups}}
+          <article class="archive-group">
+            <h2>{{.Label}}</h2>
+            <ul>
+              {{range .Posts}}
+              <li>
+                <span class="meta">{{.DateDisplay}}</span>
+                <a href="{{$.BasePath}}/post/{{.Slug}}">{{.Title}}</a>
+              </li>
+              {{end}}
+            </ul>
+          </article>
           {{end}}
-        </ul>
-      </article>
-      {{end}}
+        </section>
+        {{else}}
+        <p class="empty">暂时没有归档内容。</p>
+        {{end}}
+      </div>
     </section>
-    {{else}}
-    <p class="empty">暂无归档内容。</p>
-    {{end}}
   </main>
 </body>
 </html>
