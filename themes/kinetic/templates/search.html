@@ -27,6 +27,7 @@
         <input id="q" class="search-input" type="search" placeholder="输入关键词，例如：Go、部署、日志">
         <p id="search-meta" class="meta">输入关键词后开始搜索。</p>
         <div id="search-results" class="post-grid"></div>
+        <nav id="search-pagination" class="pagination" aria-label="搜索分页"></nav>
       </div>
     </section>
   </main>
@@ -38,7 +39,11 @@
       const input = document.getElementById("q");
       const meta = document.getElementById("search-meta");
       const results = document.getElementById("search-results");
+      const pagination = document.getElementById("search-pagination");
+      const pageSize = 10;
       let docs = [];
+      let matched = [];
+      let currentPage = 1;
 
       function escapeHtml(str) {
         return str
@@ -70,25 +75,82 @@
         return prefix + highlight(raw.slice(start, end), keyword) + suffix;
       }
 
-      function render(list, keyword) {
+      function setURL(keyword, page) {
+        const url = new URL(window.location.href);
+        if (keyword) {
+          url.searchParams.set("q", keyword);
+        } else {
+          url.searchParams.delete("q");
+        }
+        if (page > 1) {
+          url.searchParams.set("p", String(page));
+        } else {
+          url.searchParams.delete("p");
+        }
+        history.replaceState({}, "", url);
+      }
+
+      function renderPagination(totalPages, page, keyword) {
+        if (totalPages <= 1) {
+          pagination.innerHTML = "";
+          return;
+        }
+        let html = "";
+        if (page > 1) {
+          html += `<a class="page-btn" href="#" data-page="${page - 1}">上一页</a>`;
+        } else {
+          html += `<span class="page-btn disabled">上一页</span>`;
+        }
+        html += `<div class="page-list">`;
+        for (let i = 1; i <= totalPages; i++) {
+          html += `<a class="page-num ${i === page ? "current" : ""}" href="#" data-page="${i}">${i}</a>`;
+        }
+        html += `</div>`;
+        if (page < totalPages) {
+          html += `<a class="page-btn" href="#" data-page="${page + 1}">下一页</a>`;
+        } else {
+          html += `<span class="page-btn disabled">下一页</span>`;
+        }
+        pagination.innerHTML = html;
+        pagination.querySelectorAll("a[data-page]").forEach((el) => {
+          el.addEventListener("click", (e) => {
+            e.preventDefault();
+            currentPage = Number(el.dataset.page || "1");
+            render(keyword);
+          });
+        });
+      }
+
+      function render(keyword) {
         if (!keyword) {
           meta.textContent = "输入关键词后开始搜索。";
           results.innerHTML = "";
+          pagination.innerHTML = "";
           return;
         }
 
-        meta.textContent = `找到 ${list.length} 条结果`;
-        if (!list.length) {
+        const total = matched.length;
+        if (!total) {
+          meta.textContent = "找到 0 条结果";
           results.innerHTML = `
             <div class="empty">
               <p>没有匹配结果。</p>
               <p class="meta">可以尝试更短关键词、近义词，或按标签搜索。</p>
             </div>
           `;
+          pagination.innerHTML = "";
           return;
         }
 
-        results.innerHTML = list.map((doc) => {
+        const totalPages = Math.ceil(total / pageSize);
+        if (currentPage < 1) currentPage = 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+        const start = (currentPage - 1) * pageSize;
+        const end = start + pageSize;
+        const pageDocs = matched.slice(start, end);
+        meta.textContent = `找到 ${total} 条结果，第 ${currentPage}/${totalPages} 页`;
+
+        results.innerHTML = pageDocs.map((doc) => {
           const snippet = makeSnippet(doc.content || "", keyword);
           const tags = (doc.tags || []).map((t) => `<span>#${highlight(t, keyword)}</span>`).join("");
           return `
@@ -102,6 +164,9 @@
             </a>
           `;
         }).join("");
+
+        renderPagination(totalPages, currentPage, keyword);
+        setURL(keyword, currentPage);
       }
 
       try {
@@ -115,27 +180,33 @@
       const run = () => {
         const keyword = input.value.trim().toLowerCase();
         if (!keyword) {
-          render([], "");
-          const url = new URL(window.location.href);
-          url.searchParams.delete("q");
-          history.replaceState({}, "", url);
+          matched = [];
+          currentPage = 1;
+          render("");
+          setURL("", 1);
           return;
         }
-        const matched = docs.filter((doc) => {
+        matched = docs.filter((doc) => {
           const hay = `${doc.title || ""} ${(doc.tags || []).join(" ")} ${doc.content || ""}`.toLowerCase();
           return hay.includes(keyword);
         });
-        render(matched.slice(0, 60), keyword);
-        const url = new URL(window.location.href);
-        url.searchParams.set("q", keyword);
-        history.replaceState({}, "", url);
+        currentPage = 1;
+        render(keyword);
       };
 
       input.addEventListener("input", run);
       const initial = new URL(window.location.href).searchParams.get("q");
       if (initial) {
         input.value = initial;
-        run();
+        const initialPage = Number(new URL(window.location.href).searchParams.get("p") || "1");
+        if (Number.isFinite(initialPage) && initialPage > 0) {
+          currentPage = Math.floor(initialPage);
+        }
+        matched = docs.filter((doc) => {
+          const hay = `${doc.title || ""} ${(doc.tags || []).join(" ")} ${doc.content || ""}`.toLowerCase();
+          return hay.includes(initial.toLowerCase());
+        });
+        render(initial.toLowerCase());
       }
     })();
   </script>

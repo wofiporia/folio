@@ -41,6 +41,18 @@
       <p class="empty">该标签下暂无文章。</p>
       {{end}}
     </section>
+
+    {{if gt .Pagination.TotalPages 1}}
+    <nav class="pagination" aria-label="分页导航">
+      {{if .Pagination.PrevURL}}<a class="page-btn" href="{{.Pagination.PrevURL}}">上一页</a>{{else}}<span class="page-btn disabled">上一页</span>{{end}}
+      <div class="page-list">
+        {{range .Pagination.Pages}}
+        <a class="page-num {{if .Current}}current{{end}}" href="{{.URL}}">{{.Number}}</a>
+        {{end}}
+      </div>
+      {{if .Pagination.NextURL}}<a class="page-btn" href="{{.Pagination.NextURL}}">下一页</a>{{else}}<span class="page-btn disabled">下一页</span>{{end}}
+    </nav>
+    {{end}}
   </main>
 </body>
 </html>

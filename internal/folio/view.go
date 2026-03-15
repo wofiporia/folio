@@ -38,6 +38,7 @@ type TagsPageData struct {
 	CurrentTag   string
 	Tags         []TagStat
 	Posts        []Post
+	Pagination   Pagination
 }
 
 type ArchivesPageData struct {
@@ -48,6 +49,7 @@ type ArchivesPageData struct {
 	FaviconPath  string
 	SEO          SEO
 	Groups       []ArchiveGroup
+	Pagination   Pagination
 }
 
 type SearchPageData struct {

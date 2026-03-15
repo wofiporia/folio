@@ -114,6 +114,18 @@ body {
   outline: none;
 }
 
+body.page-home .top-nav a:nth-child(1),
+body.page-home .back-nav a:nth-child(1),
+body.page-tags .top-nav a:nth-child(2),
+body.page-tags .back-nav a:nth-child(2),
+body.page-archives .top-nav a:nth-child(3),
+body.page-archives .back-nav a:nth-child(3),
+body.page-search .top-nav a:nth-child(4),
+body.page-search .back-nav a:nth-child(4) {
+  background: var(--accent-soft);
+  border-color: var(--line-strong);
+}
+
 .post-list,
 .archive-list {
   display: grid;

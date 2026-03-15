@@ -99,16 +99,26 @@ func main() {
 		}
 	}
 
-	if err := renderToFile(filepath.Join(*outDir, "archives", "index.html"), "archives.html", *basePath, tagURLs, cfg.Theme, core.ArchivesPageData{
-		Title:        "归档",
-		BasePath:     base,
-		AuthorGitHub: cfg.AuthorGitHub,
-		StylePath:    stylePath,
-		FaviconPath:  faviconPath,
-		SEO:          core.MakeSEO(cfg, "归档 - "+cfg.SiteTitle, "按月份浏览历史文章。", core.WithBase(*basePath, "/archives"), "website", ""),
-		Groups:       core.BuildArchiveGroups(posts),
-	}); err != nil {
-		log.Fatal(err)
+	_, totalArchivePages, _ := core.PaginatePosts(posts, 1, pageSize)
+	for page := 1; page <= totalArchivePages; page++ {
+		pagePosts, _, currentPage := core.PaginatePosts(posts, page, pageSize)
+		pageTitle := "归档"
+		if currentPage > 1 {
+			pageTitle = fmt.Sprintf("归档 - 第 %d 页", currentPage)
+		}
+
+		if err := renderToFile(staticArchivesOutPath(*outDir, currentPage), "archives.html", *basePath, tagURLs, cfg.Theme, core.ArchivesPageData{
+			Title:        pageTitle,
+			BasePath:     base,
+			AuthorGitHub: cfg.AuthorGitHub,
+			StylePath:    stylePath,
+			FaviconPath:  faviconPath,
+			SEO:          core.MakeSEO(cfg, pageTitle+" - "+cfg.SiteTitle, "按月份浏览历史文章。", staticArchivesPageURL(*basePath, currentPage), "website", ""),
+			Groups:       core.BuildArchiveGroups(pagePosts),
+			Pagination:   buildStaticArchivesPagination(*basePath, currentPage, totalArchivePages),
+		}); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	if err := renderToFile(filepath.Join(*outDir, "search", "index.html"), "search.html", *basePath, tagURLs, cfg.Theme, core.SearchPageData{
@@ -126,38 +136,58 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := renderToFile(filepath.Join(*outDir, "tags", "index.html"), "tags.html", *basePath, tagURLs, cfg.Theme, core.TagsPageData{
-		Title:        "标签",
-		BasePath:     base,
-		AuthorGitHub: cfg.AuthorGitHub,
-		StylePath:    stylePath,
-		FaviconPath:  faviconPath,
-		SEO:          core.MakeSEO(cfg, "标签 - "+cfg.SiteTitle, "按标签浏览文章内容。", core.WithBase(*basePath, "/tags"), "website", ""),
-		CurrentTag:   "",
-		Tags:         tagStats,
-		Posts:        posts,
-	}); err != nil {
-		log.Fatal(err)
-	}
+	_, totalTagPages, _ := core.PaginatePosts(posts, 1, pageSize)
+	for page := 1; page <= totalTagPages; page++ {
+		pagePosts, _, currentPage := core.PaginatePosts(posts, page, pageSize)
+		pageTitle := "标签"
+		if currentPage > 1 {
+			pageTitle = fmt.Sprintf("标签 - 第 %d 页", currentPage)
+		}
 
-	for _, stat := range tagStats {
-		filtered := core.FilterPostsByTag(posts, stat.Name)
-		slug := tagSlugs[stat.Name]
-		if err := renderToFile(filepath.Join(*outDir, "tags", slug, "index.html"), "tags.html", *basePath, tagURLs, cfg.Theme, core.TagsPageData{
-			Title:        "标签: " + stat.Name,
+		if err := renderToFile(staticTagsOutPath(*outDir, "", currentPage), "tags.html", *basePath, tagURLs, cfg.Theme, core.TagsPageData{
+			Title:        pageTitle,
 			BasePath:     base,
 			AuthorGitHub: cfg.AuthorGitHub,
 			StylePath:    stylePath,
 			FaviconPath:  faviconPath,
-			SEO:          core.MakeSEO(cfg, "标签: "+stat.Name+" - "+cfg.SiteTitle, "按标签浏览文章内容。", core.WithBase(*basePath, "/tags/"+slug+"/"), "website", ""),
-			CurrentTag:   stat.Name,
+			SEO:          core.MakeSEO(cfg, pageTitle+" - "+cfg.SiteTitle, "按标签浏览文章内容。", staticTagsPageURL(*basePath, "", currentPage), "website", ""),
+			CurrentTag:   "",
 			Tags:         tagStats,
-			Posts:        filtered,
+			Posts:        pagePosts,
+			Pagination:   buildStaticTagsPagination(*basePath, "", currentPage, totalTagPages),
 		}); err != nil {
 			log.Fatal(err)
 		}
 	}
 
+	for _, stat := range tagStats {
+		filtered := core.FilterPostsByTag(posts, stat.Name)
+		slug := tagSlugs[stat.Name]
+		_, totalTagPagesForCurrent, _ := core.PaginatePosts(filtered, 1, pageSize)
+
+		for page := 1; page <= totalTagPagesForCurrent; page++ {
+			pagePosts, _, currentPage := core.PaginatePosts(filtered, page, pageSize)
+			pageTitle := "标签: " + stat.Name
+			if currentPage > 1 {
+				pageTitle = fmt.Sprintf("标签: %s - 第 %d 页", stat.Name, currentPage)
+			}
+
+			if err := renderToFile(staticTagsOutPath(*outDir, slug, currentPage), "tags.html", *basePath, tagURLs, cfg.Theme, core.TagsPageData{
+				Title:        pageTitle,
+				BasePath:     base,
+				AuthorGitHub: cfg.AuthorGitHub,
+				StylePath:    stylePath,
+				FaviconPath:  faviconPath,
+				SEO:          core.MakeSEO(cfg, pageTitle+" - "+cfg.SiteTitle, "按标签浏览文章内容。", staticTagsPageURL(*basePath, slug, currentPage), "website", ""),
+				CurrentTag:   stat.Name,
+				Tags:         tagStats,
+				Posts:        pagePosts,
+				Pagination:   buildStaticTagsPagination(*basePath, slug, currentPage, totalTagPagesForCurrent),
+			}); err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
 	for _, post := range posts {
 		if err := renderToFile(filepath.Join(*outDir, "post", post.Slug, "index.html"), "post.html", *basePath, tagURLs, cfg.Theme, core.PostPageData{
 			Title:        post.Title,
@@ -341,4 +371,96 @@ func staticIndexPageURL(basePath string, page int) string {
 		return core.WithBase(basePath, "/")
 	}
 	return core.WithBase(basePath, fmt.Sprintf("/page/%d/", page))
+}
+
+func buildStaticTagsPagination(basePath, slug string, currentPage, totalPages int) core.Pagination {
+	p := core.Pagination{
+		CurrentPage: currentPage,
+		TotalPages:  totalPages,
+	}
+	if totalPages <= 1 {
+		return p
+	}
+	if currentPage > 1 {
+		p.PrevURL = staticTagsPageURL(basePath, slug, currentPage-1)
+	}
+	if currentPage < totalPages {
+		p.NextURL = staticTagsPageURL(basePath, slug, currentPage+1)
+	}
+	links := make([]core.PageLink, 0, totalPages)
+	for i := 1; i <= totalPages; i++ {
+		links = append(links, core.PageLink{
+			Number:  i,
+			URL:     staticTagsPageURL(basePath, slug, i),
+			Current: i == currentPage,
+		})
+	}
+	p.Pages = links
+	return p
+}
+
+func buildStaticArchivesPagination(basePath string, currentPage, totalPages int) core.Pagination {
+	p := core.Pagination{
+		CurrentPage: currentPage,
+		TotalPages:  totalPages,
+	}
+	if totalPages <= 1 {
+		return p
+	}
+	if currentPage > 1 {
+		p.PrevURL = staticArchivesPageURL(basePath, currentPage-1)
+	}
+	if currentPage < totalPages {
+		p.NextURL = staticArchivesPageURL(basePath, currentPage+1)
+	}
+	links := make([]core.PageLink, 0, totalPages)
+	for i := 1; i <= totalPages; i++ {
+		links = append(links, core.PageLink{
+			Number:  i,
+			URL:     staticArchivesPageURL(basePath, i),
+			Current: i == currentPage,
+		})
+	}
+	p.Pages = links
+	return p
+}
+
+func staticTagsPageURL(basePath, slug string, page int) string {
+	if strings.TrimSpace(slug) == "" {
+		if page <= 1 {
+			return core.WithBase(basePath, "/tags/")
+		}
+		return core.WithBase(basePath, fmt.Sprintf("/tags/page/%d/", page))
+	}
+	if page <= 1 {
+		return core.WithBase(basePath, "/tags/"+slug+"/")
+	}
+	return core.WithBase(basePath, fmt.Sprintf("/tags/%s/page/%d/", slug, page))
+}
+
+func staticArchivesPageURL(basePath string, page int) string {
+	if page <= 1 {
+		return core.WithBase(basePath, "/archives/")
+	}
+	return core.WithBase(basePath, fmt.Sprintf("/archives/page/%d/", page))
+}
+
+func staticTagsOutPath(outDir, slug string, page int) string {
+	if strings.TrimSpace(slug) == "" {
+		if page <= 1 {
+			return filepath.Join(outDir, "tags", "index.html")
+		}
+		return filepath.Join(outDir, "tags", "page", fmt.Sprintf("%d", page), "index.html")
+	}
+	if page <= 1 {
+		return filepath.Join(outDir, "tags", slug, "index.html")
+	}
+	return filepath.Join(outDir, "tags", slug, "page", fmt.Sprintf("%d", page), "index.html")
+}
+
+func staticArchivesOutPath(outDir string, page int) string {
+	if page <= 1 {
+		return filepath.Join(outDir, "archives", "index.html")
+	}
+	return filepath.Join(outDir, "archives", "page", fmt.Sprintf("%d", page), "index.html")
 }

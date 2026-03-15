@@ -579,9 +579,10 @@ func ResolveStaticPath(theme, rel string) string {
 }
 
 func splitFrontMatter(content string) (map[string]string, string) {
+	content = strings.TrimPrefix(content, "\uFEFF")
 	content = strings.ReplaceAll(content, "\r\n", "\n")
 	lines := strings.Split(content, "\n")
-	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+	if len(lines) == 0 || strings.TrimSpace(strings.TrimPrefix(lines[0], "\uFEFF")) != "---" {
 		return map[string]string{}, content
 	}
 
