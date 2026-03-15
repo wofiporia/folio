@@ -1,144 +1,84 @@
 ﻿# Folio
 
-一个基于 Go + 文件系统的轻量博客，支持自动发布到 GitHub Pages。  
-演示地址：https://wofiporia.github.io/folio/
+一个基于 Go + 文件系统的轻量静态博客，支持发布到 GitHub Pages。
 
-## 分支策略
+演示地址：<https://wofiporia.github.io/folio/>
 
-- `main`：公开模板分支（不自动发布）
-- `blog`：个人内容分支（自动发布到 GitHub Pages）
+## 分支与发布
 
-## 使用方式
+- `main`：模板分支（不自动发布）
+- `blog`：内容分支（自动发布到 GitHub Pages）
 
-推荐优先使用 **Template**，不建议直接 Fork。
+推荐流程：使用 `Use this template` 创建仓库，然后在 `blog` 分支写作并发布。
 
-### 方案 A：Use this template（推荐）
+## 快速开始
 
-1. 点击仓库右上角 `Use this template` 创建你自己的仓库。
-2. 在新仓库中创建并切换到 `blog` 分支（首次可从 `main` 创建）。
-3. 在仓库 `Settings -> Pages` 中将 `Source` 设为 `GitHub Actions`。
-4. 进入 `Settings -> Environments -> github-pages`，在 `Deployment branches` 中添加并允许 `blog` 分支。
-5. 向 `blog` push 一次（或手动触发 workflow）。
-6. 等待 `Deploy Pages` 成功后访问你的站点。
+1. 使用模板创建你的仓库。
+2. 新建并切换到 `blog` 分支。
+3. 在仓库 `Settings -> Pages` 中把 `Source` 设为 `GitHub Actions`。
+4. 在 `Settings -> Environments -> github-pages` 里允许 `blog` 分支部署。
+5. push 到 `blog`，等待 Actions 完成。
 
-### 方案 B：Fork（可用）
+## 配置文件（`config.json`）
 
-1. 点击 `Fork` 到你的账号。
-2. 在 fork 仓库创建 `blog` 分支。
-3. 在 fork 仓库进入 `Settings -> Pages`，`Source` 选择 `GitHub Actions`。
-4. 进入 `Settings -> Environments -> github-pages`，在 `Deployment branches` 中添加并允许 `blog` 分支。
-5. 向 `blog` push 一次（或手动触发 workflow）。
-6. 等待 `Deploy Pages` 成功后访问你的站点。
-
-## 配置项：`PAGES_BASE_PATH`
-
-在仓库 `Settings -> Secrets and variables -> Actions -> Variables` 中新增变量：
-
-- 变量名：`PAGES_BASE_PATH`
-- 示例值：
-  - 项目页（默认）：`/your-repo-name`
-  - 用户主页根路径：`/`
-  - 自定义子路径：`/blog`
-
-优先级：
-
-1. `PAGES_BASE_PATH`（若设置）
-2. 自动回退 `/<repo-name>`
-
-## 站点自定义配置（`config.json`）
-
-### 示例
+示例：
 
 ```jsonc
 {
-  "site_title": "Folio", // 站点名称（用于页面标题和 SEO site_name）
-  "site_description": "一个基于 Go 和文件系统的轻量博客。", // 站点简介（默认用于 SEO 描述）
-  "site_url": "https://wofiporia.github.io/folio", // 站点完整 URL（用于 canonical/og:url）
-  "author_name": "Wofiporia", // 默认作者名（文章未写 author 时回退）
-  "theme": "default", // 主题名（对应 themes/<theme>/）
-  "default_description": "这里什么都没有写", // SEO 默认描述（页面/文章无描述时使用）
-  "default_og_image": "", // Open Graph 默认图片 URL（可留空）
-  "default_og_type": "website" // Open Graph 默认类型（如 website / article）
-}
-```
+  "site_title": "Folio",
+  "site_description": "一个基于 Go 和文件系统的轻量博客。",
+  "site_url": "https://your-name.github.io/your-repo",
+  "author_name": "Your Name",
+  "author_github": "your-github-id",
+  "theme": "default",
+  "default_description": "这里什么都没有写。",
+  "default_og_image": "",
+  "default_og_type": "website",
 
-### 字段说明
-
-- `site_title`：站点名称。
-- `site_description`：站点描述，会显示在首页标题下方，同时作为站点级 SEO 描述默认值。
-- `site_url`：站点完整地址（必须带协议），用于生成绝对 `canonical` 与 `og:url`。
-- `author_name`：默认作者名，文章 Front Matter 未设置 `author` 时使用。
-- `theme`：前端主题名。程序会优先读取 `themes/<theme>/templates/*` 与 `themes/<theme>/static/*`，并自动回退到 `themes/default`。
-- `default_description`：全站 SEO 默认描述，页面没有更具体描述时使用。
-- `default_og_image`：全站分享默认封面图 URL（可选）。
-- `default_og_type`：Open Graph 默认类型，常见 `website`。
-
-### 评论配置（`Utterances / Giscus`）
-
-文章页支持第三方评论系统。当前可选：
-
-- `utterances`（基于 GitHub Issues）
-- `giscus`（基于 GitHub Discussions）
-
-不配置或配置不完整时，评论模块会自动关闭，不影响页面渲染。
-
-#### Utterances 示例
-
-```jsonc
-{
   "comments_provider": "utterances",
   "comments_repo": "owner/repo",
-  "comments_issue_term": "pathname", // pathname / url / title / og:title / number / <custom-term>
-  "comments_label": "", // 可选；留空表示不打标签
+  "comments_issue_term": "pathname",
+  "comments_label": "comment",
   "comments_theme": "github-light"
 }
 ```
 
-说明：
+主要字段：
 
-- `comments_repo`：评论 issue 所在仓库，必须是 `public`。
-- `comments_issue_term`：文章与 issue 的映射方式，推荐 `pathname`。
-- `comments_label`：可选。若填写，必须是仓库中已存在且大小写一致的 label。
+- `site_title`：站点名。
+- `site_description`：站点描述（首页与默认 SEO 描述）。
+- `site_url`：站点完整 URL（用于 canonical / og:url）。
+- `author_name`：文章未写作者时的默认作者名。
+- `author_github`：作者 GitHub 地址（支持直接写用户名，程序会自动补全为 `https://github.com/<name>`）。
+- `theme`：主题名（对应 `themes/<theme>`）。
+- `default_description`：缺省 SEO 描述。
+- `default_og_image`：缺省 OG 图片 URL。
+- `default_og_type`：缺省 OG 类型。
 
-#### Giscus 示例
+评论字段：
 
-```jsonc
-{
-  "comments_provider": "giscus",
-  "comments_repo": "owner/repo",
-  "comments_repo_id": "R_kgDOxxxxxx",
-  "comments_category": "General",
-  "comments_category_id": "DIC_kwDOxxxxxx",
-  "comments_mapping": "pathname",
-  "comments_theme": "preferred_color_scheme",
-  "comments_lang": "zh-CN"
-}
-```
+- `comments_provider`：`utterances` 或 `giscus`。
+- 若配置不完整，评论区会自动关闭，不影响页面渲染。
 
-说明：
+## 主题
 
-- `comments_repo_id` 与 `comments_category_id` 需从 Giscus 配置页获取。
-- `comments_mapping` 推荐 `pathname`，确保单篇文章对应稳定讨论串。
+当前内置主题：
 
-#### 启用步骤（以 Utterances 为例）
+- `default`：简约风。
+- `kinetic`：更大胆的视觉与排版。
 
-1. 打开 `https://github.com/apps/utterances` 安装 GitHub App。
-2. 授权到你的评论仓库（如 `owner/repo`）。
-3. 确认仓库为公开仓库，且已开启 `Issues`。
-4. 在 `config.json` 中写入 `comments_*` 配置后重新部署。
-5. 打开任意文章页测试评论区；首次评论会自动创建 issue。
-
-### 主题目录约定
+主题目录约定：
 
 ```text
 themes/
-└── <theme-name>/
+└── <theme>/
     ├── templates/
     │   ├── index.html
     │   ├── post.html
     │   ├── tags.html
     │   ├── archives.html
     │   ├── search.html
+    │   ├── 404.html
     │   └── partials/
     │       ├── head-common.html
     │       └── nav.html
@@ -147,68 +87,69 @@ themes/
         └── favicon.png
 ```
 
-- 默认主题：`themes/default`
-- 切换主题：修改 `config.json` 中 `theme` 字段并重启服务（或重新导出静态站点）
-- 示例主题：`default`（简洁） / `kinetic`（更大胆的视觉与排版）
+说明：模板和静态资源都支持自动回退到 `themes/default`。
 
-### 图标自定义
+## 写作
 
-- 直接替换 `themes/<theme>/static/favicon.png` 即可。
-- 若当前主题未提供，会回退到 `themes/default/static/favicon.png`。
-
-## 内容发布方式
-
-所有内容来自 `posts/*.md`，通过 Git 提交发布：
-
-1. 切到 `blog` 分支
-2. 在 `posts/` 新建或编辑 Markdown 文件
-3. 提交并 push 到 `blog`
-4. GitHub Actions 自动构建并发布
-
-文章 Front Matter 示例：
+文章放在 `posts/*.md`，使用 Front Matter：
 
 ```markdown
 ---
 title: "我的第一篇文章"
-author: "Wofiporia"
+author: "Your Name"
 date: "2026-03-03T10:00:00Z"
 tags: ["博客", "Go"]
 draft: false
 ---
 ```
 
-说明：`author` 可选；未填写时回退到 `config.json` 的 `author_name`。
+- `author` 可选；不填时回退到 `config.json` 的 `author_name`。
+- `draft: true` 的文章不会出现在前台。
 
-## 功能
+## 页面与功能
 
 - 首页：`/`
 - 文章页：`/post/{slug}`
 - 标签页：`/tags`
 - 归档页：`/archives`
 - 搜索页：`/search`（前端读取 `search-index.json`）
-- 草稿过滤：`draft: true` 不在前台展示
-- Markdown 渲染增强：标题、段落、代码块、列表、引用、链接、粗体、斜体
-- SEO 元信息：`description`、Open Graph、`canonical`、`article:published_time`
+- SEO：`description`、Open Graph、`canonical`、`article:published_time`
 
-## 本地开发（可选）
+## 本地开发
+
+启动本地服务：
 
 ```bash
 go run .
 ```
 
-本地访问：`http://localhost:8080`
+访问：`http://localhost:8080`
 
-静态导出（与 Pages 构建一致）：
+导出静态站点：
 
 ```bash
 go run ./cmd/build -out dist -base-path /your-repo-name
 ```
 
-如需在导出时覆盖站点 URL（优先级高于 `config.json`）：
+可选参数：
 
-```bash
-go run ./cmd/build -out dist -base-path /your-repo-name -site-url https://example.com
-```
+- `-config`：指定配置文件路径（默认 `config.json`）
+- `-site-url`：导出时覆盖站点 URL
+
+## GitHub Pages Base Path
+
+可在仓库变量中设置 `PAGES_BASE_PATH`（`Settings -> Secrets and variables -> Actions -> Variables`）。
+
+常见值：
+
+- 项目页：`/your-repo-name`
+- 用户主页根路径：`/`
+- 自定义子路径：`/blog`
+
+优先级：
+
+1. `PAGES_BASE_PATH`
+2. 自动回退 `/<repo-name>`
 
 ## 项目结构
 
@@ -222,4 +163,3 @@ folio/
 ├── .github/workflows/pages.yml
 └── README.md
 ```
-

@@ -4,7 +4,7 @@
   "site_url": "https://wofiporia.github.io/folio",
   "author_name": "Wofiporia",
   "author_github": "https://github.com/wofiporia",
-  "theme": "kinetic",
+  "theme": "default",
   "default_description": "这里什么都没有写。",
   "default_og_image": "",
   "default_og_type": "website",

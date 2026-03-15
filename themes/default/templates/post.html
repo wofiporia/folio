@@ -7,6 +7,16 @@
   {{if .SEO.PublishedTime}}
   <meta property="article:published_time" content="{{.SEO.PublishedTime}}">
   {{end}}
+  <script>
+    window.MathJax = {
+      tex: {
+        tags: 'ams',
+        inlineMath: [['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 </head>
 <body class="page-post">
   <main class="container">

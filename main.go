@@ -1,12 +1,14 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strconv"
@@ -227,6 +229,8 @@ func tagsHandler(w http.ResponseWriter, r *http.Request) {
 	if currentTag != "" {
 		filtered = core.FilterPostsByTag(posts, currentTag)
 	}
+	currentPage := parsePositiveIntOrDefault(r.URL.Query().Get("page"), 1)
+	visiblePosts, totalPages, currentPage := core.PaginatePosts(filtered, currentPage, pageSize)
 
 	tpl, err := parseTemplate("", "dynamic", "tags.html")
 	if err != nil {
@@ -239,6 +243,11 @@ func tagsHandler(w http.ResponseWriter, r *http.Request) {
 	if currentTag != "" {
 		title = "标签: " + currentTag
 	}
+	if currentPage > 1 {
+		title = fmt.Sprintf("%s - 第 %d 页", title, currentPage)
+	}
+	pathForSEO := dynamicTagsPageURL("", currentTag, currentPage)
+
 	stylePath, faviconPath := currentAssetPaths("")
 	data := core.TagsPageData{
 		Title:        title,
@@ -246,14 +255,14 @@ func tagsHandler(w http.ResponseWriter, r *http.Request) {
 		AuthorGitHub: appConfig.AuthorGitHub,
 		StylePath:    stylePath,
 		FaviconPath:  faviconPath,
-		SEO:          core.MakeSEO(appConfig, title+" - "+appConfig.SiteTitle, "按标签浏览文章内容。", "/tags", "website", ""),
+		SEO:          core.MakeSEO(appConfig, title+" - "+appConfig.SiteTitle, "按标签浏览文章内容。", pathForSEO, "website", ""),
 		CurrentTag:   currentTag,
 		Tags:         tagStats,
-		Posts:        filtered,
+		Posts:        visiblePosts,
+		Pagination:   buildDynamicTagsPagination("", currentTag, currentPage, totalPages),
 	}
 	renderHTML(w, tpl, data, "tags")
 }
-
 func archivesHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/archives" {
 		renderNotFound(w, r)
@@ -266,6 +275,8 @@ func archivesHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("loadPosts error: %v", err)
 		return
 	}
+	currentPage := parsePositiveIntOrDefault(r.URL.Query().Get("page"), 1)
+	visiblePosts, totalPages, currentPage := core.PaginatePosts(posts, currentPage, pageSize)
 
 	tpl, err := parseTemplate("", "dynamic", "archives.html")
 	if err != nil {
@@ -274,19 +285,23 @@ func archivesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	title := "归档"
+	if currentPage > 1 {
+		title = fmt.Sprintf("归档 - 第 %d 页", currentPage)
+	}
 	stylePath, faviconPath := currentAssetPaths("")
 	data := core.ArchivesPageData{
-		Title:        "归档",
+		Title:        title,
 		BasePath:     "",
 		AuthorGitHub: appConfig.AuthorGitHub,
 		StylePath:    stylePath,
 		FaviconPath:  faviconPath,
-		SEO:          core.MakeSEO(appConfig, "归档 - "+appConfig.SiteTitle, "按月份浏览历史文章。", "/archives", "website", ""),
-		Groups:       core.BuildArchiveGroups(posts),
+		SEO:          core.MakeSEO(appConfig, title+" - "+appConfig.SiteTitle, "按月份浏览历史文章。", dynamicArchivesPageURL("", currentPage), "website", ""),
+		Groups:       core.BuildArchiveGroups(visiblePosts),
+		Pagination:   buildDynamicArchivesPagination("", currentPage, totalPages),
 	}
 	renderHTML(w, tpl, data, "archives")
 }
-
 func searchHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/search" {
 		renderNotFound(w, r)
@@ -366,11 +381,12 @@ func withAssetVersion(rel, publicURL string) string {
 	if p == "" {
 		return publicURL
 	}
-	info, err := os.Stat(p)
+	b, err := os.ReadFile(p)
 	if err != nil {
 		return publicURL
 	}
-	return publicURL + "?v=" + strconv.FormatInt(info.ModTime().Unix(), 10)
+	sum := sha256.Sum256(b)
+	return publicURL + "?v=" + fmt.Sprintf("%x", sum[:])[:8]
 }
 
 func loadPosts(dir string) ([]core.Post, error) {
@@ -463,4 +479,77 @@ func dynamicIndexPageURL(basePath string, page int) string {
 		return core.WithBase(basePath, "/")
 	}
 	return core.WithBase(basePath, "/?page="+strconv.Itoa(page))
+}
+
+func buildDynamicTagsPagination(basePath, currentTag string, currentPage, totalPages int) core.Pagination {
+	p := core.Pagination{
+		CurrentPage: currentPage,
+		TotalPages:  totalPages,
+	}
+	if totalPages <= 1 {
+		return p
+	}
+	if currentPage > 1 {
+		p.PrevURL = dynamicTagsPageURL(basePath, currentTag, currentPage-1)
+	}
+	if currentPage < totalPages {
+		p.NextURL = dynamicTagsPageURL(basePath, currentTag, currentPage+1)
+	}
+	links := make([]core.PageLink, 0, totalPages)
+	for i := 1; i <= totalPages; i++ {
+		links = append(links, core.PageLink{
+			Number:  i,
+			URL:     dynamicTagsPageURL(basePath, currentTag, i),
+			Current: i == currentPage,
+		})
+	}
+	p.Pages = links
+	return p
+}
+
+func buildDynamicArchivesPagination(basePath string, currentPage, totalPages int) core.Pagination {
+	p := core.Pagination{
+		CurrentPage: currentPage,
+		TotalPages:  totalPages,
+	}
+	if totalPages <= 1 {
+		return p
+	}
+	if currentPage > 1 {
+		p.PrevURL = dynamicArchivesPageURL(basePath, currentPage-1)
+	}
+	if currentPage < totalPages {
+		p.NextURL = dynamicArchivesPageURL(basePath, currentPage+1)
+	}
+	links := make([]core.PageLink, 0, totalPages)
+	for i := 1; i <= totalPages; i++ {
+		links = append(links, core.PageLink{
+			Number:  i,
+			URL:     dynamicArchivesPageURL(basePath, i),
+			Current: i == currentPage,
+		})
+	}
+	p.Pages = links
+	return p
+}
+
+func dynamicTagsPageURL(basePath, currentTag string, page int) string {
+	values := url.Values{}
+	if strings.TrimSpace(currentTag) != "" {
+		values.Set("tag", currentTag)
+	}
+	if page > 1 {
+		values.Set("page", strconv.Itoa(page))
+	}
+	if encoded := values.Encode(); encoded != "" {
+		return core.WithBase(basePath, "/tags?"+encoded)
+	}
+	return core.WithBase(basePath, "/tags")
+}
+
+func dynamicArchivesPageURL(basePath string, page int) string {
+	if page <= 1 {
+		return core.WithBase(basePath, "/archives")
+	}
+	return core.WithBase(basePath, "/archives?page="+strconv.Itoa(page))
 }
