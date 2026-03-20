@@ -3,9 +3,11 @@ package test
 import (
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -25,9 +27,24 @@ func waitHTTP(url string, timeout time.Duration) error {
 	return context.DeadlineExceeded
 }
 
+func freeTCPPort(t *testing.T) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("allocate free port failed: %v", err)
+	}
+	defer func() { _ = l.Close() }()
+
+	addr, ok := l.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("unexpected addr type: %T", l.Addr())
+	}
+	return strconv.Itoa(addr.Port)
+}
+
 func TestServerMainRoutesSmoke(t *testing.T) {
 	root := repoRoot(t)
-	port := "18080"
+	port := freeTCPPort(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -82,7 +99,7 @@ func TestServerMainRoutesSmoke(t *testing.T) {
 
 func TestSearchIndexReturnsJSON(t *testing.T) {
 	root := repoRoot(t)
-	port := "18081"
+	port := freeTCPPort(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -107,8 +124,11 @@ func TestSearchIndexReturnsJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request failed: %v", err)
 	}
-	defer resp.Body.Close()
-	b, _ := io.ReadAll(resp.Body)
+	defer func() { _ = resp.Body.Close() }()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body failed: %v", err)
+	}
 	if ct := resp.Header.Get("Content-Type"); !strings.Contains(ct, "application/json") {
 		t.Fatalf("unexpected content-type: %s", ct)
 	}

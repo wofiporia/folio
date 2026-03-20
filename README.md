@@ -136,6 +136,26 @@ go run ./cmd/build -out dist -base-path /your-repo-name
 - `-config`：指定配置文件路径（默认 `config.json`）
 - `-site-url`：导出时覆盖站点 URL
 
+## 开发检查
+
+安装并确认 Go 版本：
+
+```bash
+go version
+```
+
+安装 `golangci-lint`：
+
+```bash
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+```
+
+运行开发检查：
+
+```bash
+make test
+```
+
 ## GitHub Pages Base Path
 
 可在仓库变量中设置 `PAGES_BASE_PATH`（`Settings -> Secrets and variables -> Actions -> Variables`）。
