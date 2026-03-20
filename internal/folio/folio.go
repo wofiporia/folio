@@ -440,9 +440,11 @@ func LoadPosts(dir, fallbackAuthor string) ([]Post, error) {
 	}
 
 	posts := make([]Post, 0, len(files))
+	var loadErr error
 	for _, path := range files {
 		post, err := LoadPost(path, fallbackAuthor)
 		if err != nil {
+			loadErr = errors.Join(loadErr, fmt.Errorf("%s: %w", path, err))
 			continue
 		}
 		if post.Draft {
@@ -454,6 +456,9 @@ func LoadPosts(dir, fallbackAuthor string) ([]Post, error) {
 	sort.Slice(posts, func(i, j int) bool {
 		return posts[i].Date.After(posts[j].Date)
 	})
+	if loadErr != nil {
+		return nil, loadErr
+	}
 	return posts, nil
 }
 

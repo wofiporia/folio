@@ -132,6 +132,9 @@ date: "2026-03-01"
 ---
 draft body`)
 	mustWriteFile(t, filepath.Join(postsDir, "c.md"), "No front matter")
+	if err := os.Mkdir(filepath.Join(postsDir, "bad.md"), 0o755); err != nil {
+		t.Fatalf("create bad.md dir failed: %v", err)
+	}
 
 	post, err := core.LoadPost(filepath.Join(postsDir, "a.md"), "fallback")
 	if err != nil {
@@ -142,8 +145,20 @@ draft body`)
 	}
 
 	list, err := core.LoadPosts(postsDir, "fallback")
+	if err == nil {
+		t.Fatalf("expected LoadPosts to fail on malformed post")
+	}
+	if !strings.Contains(err.Error(), "bad.md") {
+		t.Fatalf("expected malformed file path in error, got: %v", err)
+	}
+	if list != nil {
+		t.Fatalf("expected nil post list on load error, got %d entries", len(list))
+	}
+	_ = os.RemoveAll(filepath.Join(postsDir, "bad.md"))
+
+	list, err = core.LoadPosts(postsDir, "fallback")
 	if err != nil {
-		t.Fatalf("LoadPosts error: %v", err)
+		t.Fatalf("LoadPosts error after removing bad post: %v", err)
 	}
 	if len(list) != 2 {
 		t.Fatalf("expected 2 visible posts, got %d", len(list))
