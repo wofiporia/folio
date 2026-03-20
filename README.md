@@ -157,8 +157,14 @@ go run ./cmd/build -out dist -base-path /your-repo-name
 folio/
 ├── main.go
 ├── cmd/build/main.go
+├── internal/folio/
+│   ├── folio.go
+│   ├── view.go
+│   ├── routing.go
+│   └── static_build.go
 ├── config.json
 ├── posts/
+├── test/
 ├── themes/
 ├── .github/workflows/pages.yml
 └── README.md
