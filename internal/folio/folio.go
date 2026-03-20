@@ -730,7 +730,7 @@ func renderMarkdown(input string) string {
 				level = 6
 			}
 			text := strings.TrimSpace(trimmed[level:])
-			out.WriteString(fmt.Sprintf("<h%d>%s</h%d>\n", level, formatInline(text), level))
+			fmt.Fprintf(&out, "<h%d>%s</h%d>\n", level, formatInline(text), level)
 			continue
 		}
 

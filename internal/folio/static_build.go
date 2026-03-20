@@ -3,6 +3,7 @@ package folio
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -227,7 +228,7 @@ func BuildStaticSite(opts BuildOptions) error {
 	return nil
 }
 
-func writeBuildJSON(path string, v any) error {
+func writeBuildJSON(path string, v any) (err error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -235,14 +236,16 @@ func writeBuildJSON(path string, v any) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		err = errors.Join(err, f.Close())
+	}()
 
 	enc := json.NewEncoder(f)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)
 }
 
-func renderStaticFile(dstPath, page, basePath string, tagURLs map[string]string, theme string, data any) error {
+func renderStaticFile(dstPath, page, basePath string, tagURLs map[string]string, theme string, data any) (err error) {
 	tpl, err := parseBuildTemplate(basePath, tagURLs, theme, page)
 	if err != nil {
 		return err
@@ -255,7 +258,9 @@ func renderStaticFile(dstPath, page, basePath string, tagURLs map[string]string,
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		err = errors.Join(err, f.Close())
+	}()
 
 	return tpl.Execute(f, data)
 }
@@ -286,12 +291,14 @@ func copyDir(src, dst string) error {
 	})
 }
 
-func copyFile(src, dst string) error {
+func copyFile(src, dst string) (err error) {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() {
+		err = errors.Join(err, in.Close())
+	}()
 
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
@@ -300,12 +307,14 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		err = errors.Join(err, out.Close())
+	}()
 
 	if _, err := io.Copy(out, in); err != nil {
 		return err
 	}
-	return out.Close()
+	return nil
 }
 
 func copyDirIfExists(src, dst string) error {
