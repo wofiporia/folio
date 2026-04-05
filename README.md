@@ -114,6 +114,7 @@ draft: false
 - 归档页：`/archives`
 - 搜索页：`/search`（前端读取 `search-index.json`）
 - SEO：`description`、Open Graph、`canonical`、`article:published_time`
+- 已启用 Turbo 导航（同源页面切换默认无整页刷新）
 
 ## 本地开发
 
@@ -135,6 +136,88 @@ go run ./cmd/build -out dist -base-path /your-repo-name
 
 - `-config`：指定配置文件路径（默认 `config.json`）
 - `-site-url`：导出时覆盖站点 URL
+
+## 开发检查
+
+安装并确认 Go 版本：
+
+```bash
+go version
+```
+
+安装 `golangci-lint`：
+
+```bash
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+```
+
+运行开发检查：
+
+```bash
+make test
+```
+
+## 插件系统（实验性）
+
+Folio 支持通过外部进程插件扩展构建/内容流程，协议为 `stdin/stdout` 的 JSON。
+
+当前可用 Hook：
+
+- `after_posts_loaded`：文章加载完成后，可返回新文章列表。
+- `after_static_build`：静态构建完成后，可生成额外产物。
+- `before_page_render`：页面渲染前，可注入额外 head 片段（如脚本/样式）。
+
+插件目录约定（即插即用）：
+
+```text
+plugins/
+└── <name>/
+    ├── main.go
+    └── plugin.json
+```
+
+当 `plugin.json` 未显式配置 `command/args` 时，默认自动执行：
+
+```bash
+go run ./plugins/<name>
+```
+
+最简启用方式（只写插件名）：
+
+```jsonc
+{
+  "plugins": ["music_player"]
+}
+```
+
+支持两种写法：
+
+- 字符串数组：`["music_player"]`（推荐，最简）。
+- 对象数组：用于覆盖插件参数（`timeout_ms`、`fail_fast`、`config` 等）。
+
+内置/示例插件：
+
+- `music_player`：`before_page_render` 阶段注入页面右下角悬浮播放器（默认播放 `{{.BasePath}}/static/plugins/music_player/music.mp3`）。
+  - 插件静态资源目录：`plugins/music_player/static/`（会映射到 `/static/plugins/music_player/`）。
+  - 支持拖拽移动位置。
+  - 支持最小化与隐藏。
+
+`music_player` 高级配置示例：
+
+```jsonc
+{
+  "plugins": [
+    {
+      "name": "music_player",
+      "config": {
+        "src": "/static/plugins/music_player/music.mp3",
+        "title": "Now Playing",
+        "volume": 0.8
+      }
+    }
+  ]
+}
+```
 
 ## GitHub Pages Base Path
 

@@ -132,6 +132,9 @@ date: "2026-03-01"
 ---
 draft body`)
 	mustWriteFile(t, filepath.Join(postsDir, "c.md"), "No front matter")
+	if err := os.Mkdir(filepath.Join(postsDir, "bad.md"), 0o755); err != nil {
+		t.Fatalf("create bad.md dir failed: %v", err)
+	}
 
 	post, err := core.LoadPost(filepath.Join(postsDir, "a.md"), "fallback")
 	if err != nil {
@@ -142,8 +145,20 @@ draft body`)
 	}
 
 	list, err := core.LoadPosts(postsDir, "fallback")
+	if err == nil {
+		t.Fatalf("expected LoadPosts to fail on malformed post")
+	}
+	if !strings.Contains(err.Error(), "bad.md") {
+		t.Fatalf("expected malformed file path in error, got: %v", err)
+	}
+	if list != nil {
+		t.Fatalf("expected nil post list on load error, got %d entries", len(list))
+	}
+	_ = os.RemoveAll(filepath.Join(postsDir, "bad.md"))
+
+	list, err = core.LoadPosts(postsDir, "fallback")
 	if err != nil {
-		t.Fatalf("LoadPosts error: %v", err)
+		t.Fatalf("LoadPosts error after removing bad post: %v", err)
 	}
 	if len(list) != 2 {
 		t.Fatalf("expected 2 visible posts, got %d", len(list))
@@ -286,5 +301,42 @@ func TestRoutingHelpers(t *testing.T) {
 	}
 	if got := core.StaticArchivesPageURL("/repo", 2); got != "/repo/archives/page/2/" {
 		t.Fatalf("StaticArchivesPageURL mismatch: %s", got)
+	}
+}
+
+func TestPluginManagerConstruction(t *testing.T) {
+	cfg := core.DefaultConfig()
+	if m := core.NewPluginManager(".", cfg); m != nil {
+		t.Fatalf("expected nil plugin manager for empty config")
+	}
+
+	cfg.Plugins = core.PluginConfigs{
+		{
+			Name:  "music_player",
+			Hooks: []string{"before_page_render"},
+		},
+	}
+	if m := core.NewPluginManager(".", cfg); m == nil {
+		t.Fatalf("expected non-nil plugin manager when plugins are configured")
+	}
+}
+
+func TestPluginNamesConfigParsing(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, "config.json")
+	mustWriteFile(t, cfgPath, `{
+  "site_title": "Folio",
+  "plugins": ["music_player"]
+}`)
+
+	cfg, err := core.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig error: %v", err)
+	}
+	if len(cfg.Plugins) != 1 {
+		t.Fatalf("expected 1 plugin, got %d", len(cfg.Plugins))
+	}
+	if cfg.Plugins[0].Name != "music_player" {
+		t.Fatalf("unexpected plugin names: %+v", cfg.Plugins)
 	}
 }

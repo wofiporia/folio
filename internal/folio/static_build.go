@@ -1,8 +1,10 @@
 package folio
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -46,6 +48,15 @@ func BuildStaticSite(opts BuildOptions) error {
 	if err != nil {
 		return err
 	}
+	pluginManager := NewPluginManager(filepath.Dir(opts.ConfigPath), cfg)
+	posts, err = pluginManager.RunAfterPostsLoaded(context.Background(), posts, PluginBuildContext{
+		Mode:     "static",
+		OutDir:   opts.OutDir,
+		BasePath: opts.BasePath,
+	})
+	if err != nil {
+		return err
+	}
 
 	tagStats, tagSlugs, tagURLs := BuildStaticTagStats(posts, opts.BasePath)
 
@@ -64,6 +75,9 @@ func BuildStaticSite(opts BuildOptions) error {
 	if err := copyDirIfExists(filepath.Join("themes", NormalizeThemeName(cfg.Theme), "static"), filepath.Join(opts.OutDir, "static")); err != nil {
 		return err
 	}
+	if err := copyEnabledPluginStatics(pluginManager, filepath.Dir(opts.ConfigPath), filepath.Join(opts.OutDir, "static", "plugins")); err != nil {
+		return err
+	}
 
 	assets, err := fingerprintAssets(filepath.Join(opts.OutDir, "static"), []string{"style.css", "favicon.png"})
 	if err != nil {
@@ -79,6 +93,7 @@ func BuildStaticSite(opts BuildOptions) error {
 	if name := assets["favicon.png"]; name != "" {
 		faviconPath = WithBase(opts.BasePath, "/static/"+name)
 	}
+	pluginHead := pluginManager.HeadSnippet(opts.BasePath)
 
 	_, totalPages, _ := PaginatePosts(posts, 1, staticPageSize)
 	for page := 1; page <= totalPages; page++ {
@@ -100,6 +115,7 @@ func BuildStaticSite(opts BuildOptions) error {
 			FaviconPath:     faviconPath,
 			SiteDescription: cfg.SiteDescription,
 			SEO:             MakeSEO(cfg, pageTitle, cfg.SiteDescription, pagePathForSEO, "website", ""),
+			PluginHead:      pluginHead,
 			Posts:           pagePosts,
 			Pagination:      BuildStaticPagination(opts.BasePath, currentPage, totalPages),
 		}); err != nil {
@@ -122,6 +138,7 @@ func BuildStaticSite(opts BuildOptions) error {
 			StylePath:    stylePath,
 			FaviconPath:  faviconPath,
 			SEO:          MakeSEO(cfg, pageTitle+" - "+cfg.SiteTitle, "按月份浏览历史文章。", StaticArchivesPageURL(opts.BasePath, currentPage), "website", ""),
+			PluginHead:   pluginHead,
 			Groups:       BuildArchiveGroups(pagePosts),
 			Pagination:   BuildStaticArchivesPagination(opts.BasePath, currentPage, totalArchivePages),
 		}); err != nil {
@@ -136,6 +153,7 @@ func BuildStaticSite(opts BuildOptions) error {
 		StylePath:    stylePath,
 		FaviconPath:  faviconPath,
 		SEO:          MakeSEO(cfg, "搜索 - "+cfg.SiteTitle, "在博客中搜索标题、标签和正文。", WithBase(opts.BasePath, "/search"), "website", ""),
+		PluginHead:   pluginHead,
 	}); err != nil {
 		return err
 	}
@@ -159,6 +177,7 @@ func BuildStaticSite(opts BuildOptions) error {
 			StylePath:    stylePath,
 			FaviconPath:  faviconPath,
 			SEO:          MakeSEO(cfg, pageTitle+" - "+cfg.SiteTitle, "按标签浏览文章内容。", StaticTagsPageURL(opts.BasePath, "", currentPage), "website", ""),
+			PluginHead:   pluginHead,
 			CurrentTag:   "",
 			Tags:         tagStats,
 			Posts:        pagePosts,
@@ -187,6 +206,7 @@ func BuildStaticSite(opts BuildOptions) error {
 				StylePath:    stylePath,
 				FaviconPath:  faviconPath,
 				SEO:          MakeSEO(cfg, pageTitle+" - "+cfg.SiteTitle, "按标签浏览文章内容。", StaticTagsPageURL(opts.BasePath, slug, currentPage), "website", ""),
+				PluginHead:   pluginHead,
 				CurrentTag:   stat.Name,
 				Tags:         tagStats,
 				Posts:        pagePosts,
@@ -205,6 +225,7 @@ func BuildStaticSite(opts BuildOptions) error {
 			StylePath:    stylePath,
 			FaviconPath:  faviconPath,
 			SEO:          MakeSEO(cfg, post.Title+" - "+cfg.SiteTitle, Excerpt(post.Markdown, 140), WithBase(opts.BasePath, "/post/"+post.Slug+"/"), "article", post.Date.Format(time.RFC3339)),
+			PluginHead:   pluginHead,
 			Post:         post,
 			Comments:     BuildCommentConfig(cfg, post),
 		}); err != nil {
@@ -219,7 +240,15 @@ func BuildStaticSite(opts BuildOptions) error {
 		StylePath:    stylePath,
 		FaviconPath:  faviconPath,
 		SEO:          MakeSEO(cfg, "页面不存在 - "+cfg.SiteTitle, "你访问的页面不存在或已移动。", WithBase(opts.BasePath, "/404.html"), "website", ""),
+		PluginHead:   pluginHead,
 		Message:      "你访问的页面不存在或已移动。",
+	}); err != nil {
+		return err
+	}
+	if err := pluginManager.RunAfterStaticBuild(context.Background(), posts, PluginBuildContext{
+		Mode:     "static",
+		OutDir:   opts.OutDir,
+		BasePath: opts.BasePath,
 	}); err != nil {
 		return err
 	}
@@ -227,7 +256,7 @@ func BuildStaticSite(opts BuildOptions) error {
 	return nil
 }
 
-func writeBuildJSON(path string, v any) error {
+func writeBuildJSON(path string, v any) (err error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -235,14 +264,16 @@ func writeBuildJSON(path string, v any) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		err = errors.Join(err, f.Close())
+	}()
 
 	enc := json.NewEncoder(f)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)
 }
 
-func renderStaticFile(dstPath, page, basePath string, tagURLs map[string]string, theme string, data any) error {
+func renderStaticFile(dstPath, page, basePath string, tagURLs map[string]string, theme string, data any) (err error) {
 	tpl, err := parseBuildTemplate(basePath, tagURLs, theme, page)
 	if err != nil {
 		return err
@@ -255,7 +286,9 @@ func renderStaticFile(dstPath, page, basePath string, tagURLs map[string]string,
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		err = errors.Join(err, f.Close())
+	}()
 
 	return tpl.Execute(f, data)
 }
@@ -286,12 +319,14 @@ func copyDir(src, dst string) error {
 	})
 }
 
-func copyFile(src, dst string) error {
+func copyFile(src, dst string) (err error) {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() {
+		err = errors.Join(err, in.Close())
+	}()
 
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
@@ -300,12 +335,14 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		err = errors.Join(err, out.Close())
+	}()
 
 	if _, err := io.Copy(out, in); err != nil {
 		return err
 	}
-	return out.Close()
+	return nil
 }
 
 func copyDirIfExists(src, dst string) error {
@@ -320,6 +357,20 @@ func copyDirIfExists(src, dst string) error {
 		return nil
 	}
 	return copyDir(src, dst)
+}
+
+func copyEnabledPluginStatics(m *PluginManager, configDir, dstRoot string) error {
+	if m == nil {
+		return nil
+	}
+	for _, name := range m.EnabledPluginNames() {
+		src := filepath.Join(configDir, "plugins", name, "static")
+		dst := filepath.Join(dstRoot, name)
+		if err := copyDirIfExists(src, dst); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func fingerprintAssets(staticDir string, names []string) (map[string]string, error) {

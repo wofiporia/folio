@@ -13,4 +13,6 @@
   {{if .SEO.OGImage}}<meta property="og:image" content="{{.SEO.OGImage}}">{{end}}
   <link rel="icon" type="image/png" href="{{.FaviconPath}}">
   <link rel="stylesheet" href="{{.StylePath}}">
+  <script defer src="https://cdn.jsdelivr.net/npm/@hotwired/turbo@8.0.12/dist/turbo.es2017-umd.js"></script>
+  {{.PluginHead}}
 {{end}}

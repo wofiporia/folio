@@ -13,6 +13,7 @@ type IndexPageData struct {
 	FaviconPath     string
 	SiteDescription string
 	SEO             SEO
+	PluginHead      template.HTML
 	Posts           []Post
 	Pagination      Pagination
 }
@@ -24,6 +25,7 @@ type PostPageData struct {
 	StylePath    string
 	FaviconPath  string
 	SEO          SEO
+	PluginHead   template.HTML
 	Post         Post
 	Comments     CommentConfig
 }
@@ -35,6 +37,7 @@ type TagsPageData struct {
 	StylePath    string
 	FaviconPath  string
 	SEO          SEO
+	PluginHead   template.HTML
 	CurrentTag   string
 	Tags         []TagStat
 	Posts        []Post
@@ -48,6 +51,7 @@ type ArchivesPageData struct {
 	StylePath    string
 	FaviconPath  string
 	SEO          SEO
+	PluginHead   template.HTML
 	Groups       []ArchiveGroup
 	Pagination   Pagination
 }
@@ -59,6 +63,7 @@ type SearchPageData struct {
 	StylePath    string
 	FaviconPath  string
 	SEO          SEO
+	PluginHead   template.HTML
 }
 
 type NotFoundPageData struct {
@@ -68,6 +73,7 @@ type NotFoundPageData struct {
 	StylePath    string
 	FaviconPath  string
 	SEO          SEO
+	PluginHead   template.HTML
 	Message      string
 }
 
