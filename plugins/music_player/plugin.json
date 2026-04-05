@@ -1,0 +1,11 @@
+{
+  "name": "music_player",
+  "hooks": ["before_page_render"],
+  "timeout_ms": 5000,
+  "fail_fast": true,
+  "config": {
+    "src": "/static/plugins/music_player/music.mp3",
+    "title": "Now Playing",
+    "volume": 0.8
+  }
+}

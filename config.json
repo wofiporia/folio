@@ -12,5 +12,6 @@
   "comments_repo": "wofiporia/folio",
   "comments_issue_term": "pathname",
   "comments_label": "comment",
-  "comments_theme": "github-light"
+  "comments_theme": "github-light",
+  "plugins": ["music_player"]
 }
