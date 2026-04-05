@@ -46,6 +46,7 @@ func main() {
 	}
 
 	src := configString(req.Config, "src", withBase(basePath, "/static/plugins/music_player/music.mp3"))
+	src = normalizeMediaSrc(basePath, src)
 	title := configString(req.Config, "title", "Now Playing")
 	volume := configFloat(req.Config, "volume", 0.8)
 	if volume < 0 {
@@ -296,6 +297,34 @@ func withBase(basePath, p string) string {
 		return "/" + basePath + p
 	}
 	return "/" + basePath + "/" + p
+}
+
+func normalizeMediaSrc(basePath, src string) string {
+	src = strings.TrimSpace(src)
+	if src == "" {
+		return src
+	}
+
+	// Keep absolute URLs and special schemes unchanged.
+	lower := strings.ToLower(src)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") ||
+		strings.HasPrefix(src, "//") || strings.HasPrefix(lower, "data:") || strings.HasPrefix(lower, "blob:") {
+		return src
+	}
+
+	cleanBase := strings.Trim(basePath, "/")
+	if cleanBase == "" {
+		return src
+	}
+	if !strings.HasPrefix(src, "/") {
+		return src
+	}
+
+	prefix := "/" + cleanBase
+	if src == prefix || strings.HasPrefix(src, prefix+"/") {
+		return src
+	}
+	return prefix + src
 }
 
 func configString(cfg map[string]any, key, fallback string) string {
