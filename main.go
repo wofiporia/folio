@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -30,6 +31,7 @@ var postsCache = struct {
 }{}
 
 var appConfig = core.DefaultConfig()
+var pluginManager *core.PluginManager
 
 func main() {
 	cfg, err := core.LoadConfig("config.json")
@@ -37,6 +39,7 @@ func main() {
 		log.Fatalf("load config error: %v", err)
 	}
 	appConfig = cfg
+	pluginManager = core.NewPluginManager(".", appConfig)
 
 	mux := newMux()
 
@@ -104,6 +107,7 @@ func renderNotFound(w http.ResponseWriter, r *http.Request) {
 		StylePath:    stylePath,
 		FaviconPath:  faviconPath,
 		SEO:          core.MakeSEO(appConfig, "页面不存在 - "+appConfig.SiteTitle, "你访问的页面不存在或已移动。", r.URL.Path, "website", ""),
+		PluginHead:   pluginManager.HeadSnippet(""),
 		Message:      "你访问的页面不存在或已移动。",
 	}
 	renderHTMLWithStatus(w, tpl, data, "404", http.StatusNotFound)
@@ -147,6 +151,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		FaviconPath:     faviconPath,
 		SiteDescription: appConfig.SiteDescription,
 		SEO:             core.MakeSEO(appConfig, title, appConfig.SiteDescription, pathForSEO, "website", ""),
+		PluginHead:      pluginManager.HeadSnippet(""),
 		Posts:           visiblePosts,
 		Pagination:      core.BuildDynamicPagination("", currentPage, totalPages),
 	}
@@ -202,8 +207,9 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 			"article",
 			post.Date.Format(time.RFC3339),
 		),
-		Post:     post,
-		Comments: core.BuildCommentConfig(appConfig, post),
+		PluginHead: pluginManager.HeadSnippet(""),
+		Post:       post,
+		Comments:   core.BuildCommentConfig(appConfig, post),
 	}
 	renderHTML(w, tpl, data, "post")
 }
@@ -259,6 +265,7 @@ func tagsHandler(w http.ResponseWriter, r *http.Request) {
 		StylePath:    stylePath,
 		FaviconPath:  faviconPath,
 		SEO:          core.MakeSEO(appConfig, title+" - "+appConfig.SiteTitle, "按标签浏览文章内容。", pathForSEO, "website", ""),
+		PluginHead:   pluginManager.HeadSnippet(""),
 		CurrentTag:   currentTag,
 		Tags:         tagStats,
 		Posts:        visiblePosts,
@@ -300,6 +307,7 @@ func archivesHandler(w http.ResponseWriter, r *http.Request) {
 		StylePath:    stylePath,
 		FaviconPath:  faviconPath,
 		SEO:          core.MakeSEO(appConfig, title+" - "+appConfig.SiteTitle, "按月份浏览历史文章。", core.DynamicArchivesPageURL("", currentPage), "website", ""),
+		PluginHead:   pluginManager.HeadSnippet(""),
 		Groups:       core.BuildArchiveGroups(visiblePosts),
 		Pagination:   core.BuildDynamicArchivesPagination("", currentPage, totalPages),
 	}
@@ -326,6 +334,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		StylePath:    stylePath,
 		FaviconPath:  faviconPath,
 		SEO:          core.MakeSEO(appConfig, "搜索 - "+appConfig.SiteTitle, "在博客中搜索标题、标签和正文。", "/search", "website", ""),
+		PluginHead:   pluginManager.HeadSnippet(""),
 	}
 	renderHTML(w, tpl, data, "search")
 }
@@ -364,6 +373,15 @@ func staticHandler(w http.ResponseWriter, r *http.Request) {
 	if rel == "" || rel == "." {
 		renderNotFound(w, r)
 		return
+	}
+	if strings.HasPrefix(rel, "plugins/") {
+		parts := strings.SplitN(rel, "/", 3)
+		if len(parts) == 3 {
+			if p := core.ResolvePluginStaticPath(".", parts[1], parts[2]); p != "" {
+				http.ServeFile(w, r, p)
+				return
+			}
+		}
 	}
 	p := core.ResolveStaticPath(appConfig.Theme, rel)
 	if p == "" {
@@ -404,6 +422,12 @@ func loadPosts(dir string) ([]core.Post, error) {
 	postsCache.mu.RUnlock()
 
 	posts, err := core.LoadPosts(dir, appConfig.AuthorName)
+	if err != nil {
+		return nil, err
+	}
+	posts, err = pluginManager.RunAfterPostsLoaded(context.Background(), posts, core.PluginBuildContext{
+		Mode: "dynamic",
+	})
 	if err != nil {
 		return nil, err
 	}
