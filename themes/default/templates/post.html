@@ -17,6 +17,22 @@
     };
   </script>
   <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+  <script>
+    (function () {
+      function typesetMath() {
+        if (!window.MathJax || typeof window.MathJax.typesetPromise !== "function") return;
+        const scope = document.querySelector(".post-detail .content");
+        if (!scope) return;
+        window.MathJax.typesetPromise([scope]).catch(function () { return null; });
+      }
+      document.addEventListener("turbo:load", typesetMath);
+      if (document.readyState !== "loading") {
+        typesetMath();
+      } else {
+        document.addEventListener("DOMContentLoaded", typesetMath, { once: true });
+      }
+    })();
+  </script>
 </head>
 <body class="page-post">
   <main class="container">
