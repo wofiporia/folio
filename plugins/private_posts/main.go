@@ -267,7 +267,7 @@ func buildLockedPage(basePath string, p privatePost) string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <title>绉佸瘑鏂囩珷 路 ` + title + `</title>
+  <title>私密文章 · ` + title + `</title>
   <link rel="icon" type="image/png" href="` + faviconURL + `">
   <link rel="stylesheet" href="` + styleURL + `">
   <style>
@@ -310,14 +310,14 @@ func buildLockedPage(basePath string, p privatePost) string {
 <body>
   <div class="lock-wrap">
     <main class="card">
-      <h1>杩欐槸涓€绡囩瀵嗘枃绔?/h1>
-      <p>璇疯緭鍏ュ瘑鐮?/p>
+      <h1>这是一篇私密文章</h1>
+      <p>请输入密码</p>
       <form id="unlock-form" class="row">
-        <input id="password" type="password" placeholder="杈撳叆璁块棶瀵嗙爜" autocomplete="current-password" required>
-        <button type="submit">瑙ｉ攣</button>
+        <input id="password" type="password" placeholder="输入访问密码" autocomplete="current-password" required>
+        <button type="submit">解锁</button>
       </form>
       <div id="err" class="err"></div>
-      <p class="muted"><a href="` + homeURL + `">杩斿洖棣栭〉</a></p>
+      <p class="muted"><a href="` + homeURL + `">返回首页</a></p>
     </main>
   </div>
   <script>
@@ -347,7 +347,7 @@ func buildLockedPage(basePath string, p privatePost) string {
 
       async function unlock(password){
         const resp = await fetch('./payload.json', { cache:'no-store' });
-        if(!resp.ok){ throw new Error('鏈壘鍒板姞瀵嗗唴瀹?); }
+        if(!resp.ok){ throw new Error('未找到加密内容'); }
         const payload = await resp.json();
         const salt = b64ToBytes(payload.kdf.salt);
         const iv = b64ToBytes(payload.iv);
@@ -368,7 +368,7 @@ func buildLockedPage(basePath string, p privatePost) string {
         try {
           await unlock(pw);
         } catch(_e){
-          err.textContent = '瀵嗙爜閿欒鎴栧唴瀹瑰凡鎹熷潖';
+          err.textContent = '密码错误或内容已损坏';
         }
       });
     })();
@@ -376,7 +376,6 @@ func buildLockedPage(basePath string, p privatePost) string {
 </body>
 </html>`
 }
-
 func configString(cfg map[string]any, key, fallback string) string {
 	if cfg == nil {
 		return fallback
