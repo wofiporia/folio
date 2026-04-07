@@ -1,0 +1,11 @@
+{
+  "name": "private_posts",
+  "hooks": ["after_static_build"],
+  "timeout_ms": 30000,
+  "fail_fast": true,
+  "config": {
+    "posts_dir": "posts",
+    "password": "Folio-Private-2026-Access-Key",
+    "kdf_iterations": 210000
+  }
+}
