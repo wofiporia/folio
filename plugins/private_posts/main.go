@@ -11,10 +11,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -377,87 +375,6 @@ func buildLockedPage(basePath string, p privatePost) string {
   </script>
 </body>
 </html>`
-}
-
-func pruneSearchIndex(path string, blocked map[string]struct{}) error {
-	if len(blocked) == 0 {
-		return nil
-	}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	var docs []map[string]any
-	if err := json.Unmarshal(b, &docs); err != nil {
-		return err
-	}
-	out := make([]map[string]any, 0, len(docs))
-	for _, d := range docs {
-		slug, _ := d["slug"].(string)
-		if _, deny := blocked[slug]; deny {
-			continue
-		}
-		out = append(out, d)
-	}
-	clean, err := json.MarshalIndent(out, "", "  ")
-	if err != nil {
-		return err
-	}
-	clean = append(clean, '\n')
-	return os.WriteFile(path, clean, 0o644)
-}
-
-func pruneListingPages(outDir string, blocked map[string]struct{}) error {
-	paths := []string{}
-	paths = append(paths, filepath.Join(outDir, "index.html"))
-	if ms, _ := filepath.Glob(filepath.Join(outDir, "page", "*", "index.html")); len(ms) > 0 {
-		paths = append(paths, ms...)
-	}
-	paths = append(paths, collectIndexFiles(filepath.Join(outDir, "tags"))...)
-	paths = append(paths, collectIndexFiles(filepath.Join(outDir, "archives"))...)
-	for _, p := range paths {
-		_ = pruneListingFile(p, blocked)
-	}
-	return nil
-}
-
-func collectIndexFiles(root string) []string {
-	out := []string{}
-	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d == nil || d.IsDir() {
-			return nil
-		}
-		if strings.EqualFold(d.Name(), "index.html") {
-			out = append(out, path)
-		}
-		return nil
-	})
-	return out
-}
-
-func pruneListingFile(path string, blocked map[string]struct{}) error {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	s := string(b)
-	orig := s
-	for slug := range blocked {
-		slugQ := regexp.QuoteMeta(slug)
-		// Remove post cards in index/tags layouts.
-		reCard := regexp.MustCompile(`(?s)<a class=\"post-card-link\" href=\"[^\"]*/post/` + slugQ + `/?[^\"]*\">.*?</a>`)
-		s = reCard.ReplaceAllString(s, "")
-		// Remove archive list entries.
-		reArchiveLi := regexp.MustCompile(`(?s)<li>\s*<span class=\"meta\">.*?</span>\s*<a href=\"[^\"]*/post/` + slugQ + `/?[^\"]*\">.*?</a>\s*</li>`)
-		s = reArchiveLi.ReplaceAllString(s, "")
-	}
-	if s == orig {
-		return nil
-	}
-	return os.WriteFile(path, []byte(s), 0o644)
 }
 
 func configString(cfg map[string]any, key, fallback string) string {
