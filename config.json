@@ -13,5 +13,5 @@
   "comments_issue_term": "pathname",
   "comments_label": "comment",
   "comments_theme": "github-light",
-  "plugins": ["music_player"]
+  "plugins": [ "music_player", "private_posts" ]
 }

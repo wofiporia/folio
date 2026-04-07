@@ -132,6 +132,17 @@ go run .
 go run ./cmd/build -out dist -base-path /your-repo-name
 ```
 
+静态预览（推荐）：
+
+1. 预览 GitHub Pages 子路径（例如仓库名 `folio`）：
+
+```bash
+go run ./cmd/build -out .previewroot/folio -base-path /folio
+python -m http.server 9000 -d .previewroot
+```
+
+访问：`http://localhost:9000/folio/`
+
 可选参数：
 
 - `-config`：指定配置文件路径（默认 `config.json`）
@@ -190,34 +201,14 @@ go run ./plugins/<name>
 }
 ```
 
-支持两种写法：
+内置插件：
 
-- 字符串数组：`["music_player"]`（推荐，最简）。
-- 对象数组：用于覆盖插件参数（`timeout_ms`、`fail_fast`、`config` 等）。
+- `music_player`：页面悬浮音乐播放器。
+- `private_posts`：私密文章加密页面（详情页密码解锁）。
 
-内置/示例插件：
+详细配置、参数和示例请看：
 
-- `music_player`：`before_page_render` 阶段注入页面右下角悬浮播放器（默认播放 `{{.BasePath}}/static/plugins/music_player/music.mp3`）。
-  - 插件静态资源目录：`plugins/music_player/static/`（会映射到 `/static/plugins/music_player/`）。
-  - 支持拖拽移动位置。
-  - 支持最小化与隐藏。
-
-`music_player` 高级配置示例：
-
-```jsonc
-{
-  "plugins": [
-    {
-      "name": "music_player",
-      "config": {
-        "src": "/static/plugins/music_player/music.mp3",
-        "title": "Now Playing",
-        "volume": 0.8
-      }
-    }
-  ]
-}
-```
+- [`posts/plugins-folio.md`](posts/plugins-folio.md)
 
 ## GitHub Pages Base Path
 
