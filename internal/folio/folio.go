@@ -1267,7 +1267,6 @@ func renderTOC(headings []headingItem) string {
 			lvl = 1
 		}
 		if first {
-			prevLevel = lvl
 			first = false
 		} else {
 			if lvl > prevLevel {
