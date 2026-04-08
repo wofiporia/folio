@@ -105,7 +105,8 @@ func main() {
 		postPath := filepath.Join(outDir, "post", p.Slug, "index.html")
 		plainHTML, err := os.ReadFile(postPath)
 		if err != nil {
-			continue
+			writeResp(response{Error: fmt.Sprintf("read post %q failed: %v", p.Slug, err)})
+			os.Exit(1)
 		}
 
 		payload, err := encryptHTML(plainHTML, password, iterations, p)

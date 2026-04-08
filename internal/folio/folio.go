@@ -1,11 +1,11 @@
 package folio
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"html/template"
 	"net/url"
 	"os"
@@ -106,10 +106,14 @@ type ArchiveGroup struct {
 }
 
 var (
-	reLink   = regexp.MustCompile(`\[(.+?)\]\(([^)\s]+)\)`)
-	reBold   = regexp.MustCompile(`\*\*(.+?)\*\*`)
-	reItalic = regexp.MustCompile(`\*(.+?)\*`)
-	reCode   = regexp.MustCompile("`([^`]+)`")
+	reImage       = regexp.MustCompile(`!\[([^\]]*?)\]\(([^)\s]+)(?:\s+(?:&quot;|&#34;)(.*?)(?:&quot;|&#34;))?\)`)
+	reLink        = regexp.MustCompile(`\[([^\]]+?)\]\(([^)\s]+)(?:\s+(?:&quot;|&#34;)(.*?)(?:&quot;|&#34;))?\)`)
+	reBold        = regexp.MustCompile(`\*\*(.+?)\*\*`)
+	reItalic      = regexp.MustCompile(`\*(.+?)\*`)
+	reStrike      = regexp.MustCompile(`~~(.+?)~~`)
+	reCode        = regexp.MustCompile("`([^`]+)`")
+	reFootnoteDef = regexp.MustCompile(`^\[\^([^\]]+)\]:\s*(.*)$`)
+	reFootnoteRef = regexp.MustCompile(`\[\^([^\]]+)\]`)
 )
 
 func DefaultConfig() AppConfig {
@@ -696,34 +700,125 @@ func fallbackAuthorName(author, fallback string) string {
 	return strings.TrimSpace(fallback)
 }
 
+type headingItem struct {
+	Level int
+	ID    string
+	Text  string
+}
+
+type footnoteState struct {
+	Defs  map[string]string
+	Order []string
+	Used  map[string]int
+}
+
+type markdownTable struct {
+	Header []string
+	Rows   [][]string
+}
+
 func renderMarkdown(input string) string {
 	if strings.TrimSpace(input) == "" {
 		return ""
 	}
+	input = strings.ReplaceAll(input, "\r\n", "\n")
+	lines := strings.Split(input, "\n")
+	bodyLines, footnoteDefs := extractFootnoteDefs(lines)
+	headings := collectHeadings(bodyLines)
+	headingIdx := 0
+	footnotes := &footnoteState{
+		Defs: footnoteDefs,
+		Used: map[string]int{},
+	}
 
-	scanner := bufio.NewScanner(strings.NewReader(input))
 	var out strings.Builder
 	inCode := false
-	listTag := ""
 	var paragraph []string
+	type listFrame struct {
+		tag    string
+		liOpen bool
+	}
+	listStack := make([]listFrame, 0)
 
+	closeListItem := func() {
+		if len(listStack) == 0 {
+			return
+		}
+		top := &listStack[len(listStack)-1]
+		if top.liOpen {
+			out.WriteString("</li>\n")
+			top.liOpen = false
+		}
+	}
 	closeList := func() {
-		if listTag != "" {
-			out.WriteString("</" + listTag + ">\n")
-			listTag = ""
+		closeListItem()
+		for len(listStack) > 0 {
+			top := listStack[len(listStack)-1]
+			listStack = listStack[:len(listStack)-1]
+			out.WriteString("</" + top.tag + ">\n")
+			closeListItem()
+		}
+	}
+	adjustList := func(depth int, tag string) {
+		if depth < 0 {
+			depth = 0
+		}
+		if len(listStack) == 0 {
+			out.WriteString("<" + tag + ">\n")
+			listStack = append(listStack, listFrame{tag: tag})
+		}
+
+		currentDepth := len(listStack) - 1
+		if depth > currentDepth {
+			for currentDepth < depth {
+				parent := &listStack[len(listStack)-1]
+				if !parent.liOpen {
+					out.WriteString("<li>")
+					parent.liOpen = true
+				}
+				out.WriteString("\n<" + tag + ">\n")
+				listStack = append(listStack, listFrame{tag: tag})
+				currentDepth++
+			}
+		} else if depth < currentDepth {
+			closeListItem()
+			for currentDepth > depth {
+				top := listStack[len(listStack)-1]
+				listStack = listStack[:len(listStack)-1]
+				out.WriteString("</" + top.tag + ">\n")
+				currentDepth--
+				closeListItem()
+			}
+		}
+
+		if len(listStack) == 0 {
+			out.WriteString("<" + tag + ">\n")
+			listStack = append(listStack, listFrame{tag: tag})
+			return
+		}
+		top := &listStack[len(listStack)-1]
+		if top.tag != tag {
+			closeListItem()
+			old := listStack[len(listStack)-1]
+			listStack = listStack[:len(listStack)-1]
+			out.WriteString("</" + old.tag + ">\n")
+			out.WriteString("<" + tag + ">\n")
+			listStack = append(listStack, listFrame{tag: tag})
+		} else {
+			closeListItem()
 		}
 	}
 	flushParagraph := func() {
 		if len(paragraph) == 0 {
 			return
 		}
-		text := formatInline(strings.Join(paragraph, " "))
+		text := formatInlineWithState(strings.Join(paragraph, " "), footnotes)
 		out.WriteString("<p>" + text + "</p>\n")
 		paragraph = paragraph[:0]
 	}
 
-	for scanner.Scan() {
-		line := scanner.Text()
+	for i := 0; i < len(bodyLines); i++ {
+		line := bodyLines[i]
 		trimmed := strings.TrimSpace(line)
 
 		if strings.HasPrefix(trimmed, "```") {
@@ -750,18 +845,37 @@ func renderMarkdown(input string) string {
 			continue
 		}
 
-		if strings.HasPrefix(trimmed, "#") {
+		if strings.EqualFold(trimmed, "[TOC]") {
 			flushParagraph()
 			closeList()
-			level := 0
-			for level < len(trimmed) && trimmed[level] == '#' {
-				level++
+			out.WriteString(renderTOC(headings))
+			continue
+		}
+
+		if isHorizontalRule(trimmed) {
+			flushParagraph()
+			closeList()
+			out.WriteString("<hr>\n")
+			continue
+		}
+
+		if tbl, consumed := parseTable(bodyLines, i); consumed > 0 {
+			flushParagraph()
+			closeList()
+			out.WriteString(renderTable(tbl, footnotes))
+			i += consumed - 1
+			continue
+		}
+
+		if level, text, ok := parseHeading(trimmed); ok {
+			flushParagraph()
+			closeList()
+			id := slugifyHeading(text)
+			if headingIdx < len(headings) {
+				id = headings[headingIdx].ID
 			}
-			if level > 6 {
-				level = 6
-			}
-			text := strings.TrimSpace(trimmed[level:])
-			fmt.Fprintf(&out, "<h%d>%s</h%d>\n", level, formatInline(text), level)
+			headingIdx++
+			fmt.Fprintf(&out, `<h%d id="%s">%s</h%d>`+"\n", level, id, formatInlineWithState(text, footnotes), level)
 			continue
 		}
 
@@ -769,18 +883,24 @@ func renderMarkdown(input string) string {
 			flushParagraph()
 			closeList()
 			text := strings.TrimSpace(strings.TrimPrefix(trimmed, ">"))
-			out.WriteString("<blockquote><p>" + formatInline(text) + "</p></blockquote>\n")
+			out.WriteString("<blockquote><p>" + formatInlineWithState(text, footnotes) + "</p></blockquote>\n")
 			continue
 		}
 
-		if item, tag, ok := parseListItem(trimmed); ok {
+		if item, tag, indent, task, ok := parseListItem(line); ok {
 			flushParagraph()
-			if listTag != tag {
-				closeList()
-				listTag = tag
-				out.WriteString("<" + listTag + ">\n")
+			adjustList(indent, tag)
+			content := formatInlineWithState(item, footnotes)
+			if task != nil {
+				checked := ""
+				if *task {
+					checked = " checked"
+				}
+				content = `<input type="checkbox" disabled` + checked + `> ` + content
 			}
-			out.WriteString("<li>" + formatInline(item) + "</li>\n")
+			top := &listStack[len(listStack)-1]
+			out.WriteString("<li>" + content)
+			top.liOpen = true
 			continue
 		}
 
@@ -793,29 +913,387 @@ func renderMarkdown(input string) string {
 	if inCode {
 		out.WriteString("</code></pre>\n")
 	}
+	if len(footnotes.Order) > 0 {
+		out.WriteString(`<section class="footnotes">` + "\n")
+		out.WriteString(`<hr>` + "\n")
+		out.WriteString(`<ol>` + "\n")
+		for _, id := range footnotes.Order {
+			aid := slugifyHeading(id)
+			out.WriteString(`<li id="fn-` + aid + `">` + formatInline(footnotes.Defs[id]) + ` <a href="#fnref-` + aid + `">back</a></li>` + "\n")
+		}
+		out.WriteString(`</ol>` + "\n")
+		out.WriteString(`</section>` + "\n")
+	}
 	return out.String()
 }
 
-func parseListItem(line string) (item, tag string, ok bool) {
-	if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
-		return strings.TrimSpace(line[2:]), "ul", true
+func parseListItem(line string) (item, tag string, indent int, task *bool, ok bool) {
+	indent = leadingSpaces(line) / 2
+	trimmed := strings.TrimSpace(line)
+	if strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") {
+		item = strings.TrimSpace(trimmed[2:])
+		tag = "ul"
+		ok = true
+	} else {
+		i := 0
+		for i < len(trimmed) && trimmed[i] >= '0' && trimmed[i] <= '9' {
+			i++
+		}
+		if i > 0 && i+1 < len(trimmed) && trimmed[i] == '.' && trimmed[i+1] == ' ' {
+			item = strings.TrimSpace(trimmed[i+2:])
+			tag = "ol"
+			ok = true
+		}
+	}
+	if !ok {
+		return "", "", 0, nil, false
 	}
 
-	i := 0
-	for i < len(line) && line[i] >= '0' && line[i] <= '9' {
-		i++
+	lower := strings.ToLower(item)
+	if strings.HasPrefix(lower, "[ ] ") || strings.HasPrefix(lower, "[x] ") {
+		checked := strings.HasPrefix(lower, "[x] ")
+		task = &checked
+		item = strings.TrimSpace(item[4:])
 	}
-	if i > 0 && i+1 < len(line) && line[i] == '.' && line[i+1] == ' ' {
-		return strings.TrimSpace(line[i+2:]), "ol", true
-	}
-	return "", "", false
+	return item, tag, indent, task, true
 }
 
 func formatInline(s string) string {
+	return formatInlineWithState(s, nil)
+}
+
+func formatInlineWithState(s string, footnotes *footnoteState) string {
 	out := template.HTMLEscapeString(s)
-	out = reLink.ReplaceAllString(out, `<a href="$2">$1</a>`)
+	codeSpans := make([]string, 0)
+	out = reCode.ReplaceAllStringFunc(out, func(m string) string {
+		sub := reCode.FindStringSubmatch(m)
+		if len(sub) < 2 {
+			return m
+		}
+		token := fmt.Sprintf("{{CODE_SPAN_%d}}", len(codeSpans))
+		codeSpans = append(codeSpans, `<code>`+sub[1]+`</code>`)
+		return token
+	})
+	out = reImage.ReplaceAllStringFunc(out, func(m string) string {
+		sub := reImage.FindStringSubmatch(m)
+		if len(sub) < 3 {
+			return m
+		}
+		alt := sub[1]
+		src := sub[2]
+		title := ""
+		if len(sub) > 3 {
+			title = sub[3]
+		}
+		tag := `<img src="` + src + `" alt="` + alt + `" loading="lazy"`
+		if strings.TrimSpace(title) != "" {
+			tag += ` title="` + title + `"`
+		}
+		tag += `>`
+		return tag
+	})
+	out = reLink.ReplaceAllStringFunc(out, func(m string) string {
+		sub := reLink.FindStringSubmatch(m)
+		if len(sub) < 3 {
+			return m
+		}
+		text := sub[1]
+		href := sub[2]
+		title := ""
+		if len(sub) > 3 {
+			title = sub[3]
+		}
+		attr := ` href="` + href + `"`
+		if strings.TrimSpace(title) != "" {
+			attr += ` title="` + title + `"`
+		}
+		rawHref := strings.TrimSpace(html.UnescapeString(href))
+		if u, err := url.Parse(rawHref); err == nil && (u.Scheme == "http" || u.Scheme == "https") {
+			attr += ` target="_blank" rel="noopener noreferrer"`
+		}
+		return `<a` + attr + `>` + text + `</a>`
+	})
+	if footnotes != nil {
+		out = reFootnoteRef.ReplaceAllStringFunc(out, func(m string) string {
+			sub := reFootnoteRef.FindStringSubmatch(m)
+			if len(sub) < 2 {
+				return m
+			}
+			id := sub[1]
+			if _, ok := footnotes.Defs[id]; !ok {
+				return m
+			}
+			if n, ok := footnotes.Used[id]; ok {
+				aid := slugifyHeading(id)
+				return fmt.Sprintf(`<sup id="fnref-%s"><a href="#fn-%s">[%d]</a></sup>`, aid, aid, n)
+			}
+			n := len(footnotes.Order) + 1
+			footnotes.Order = append(footnotes.Order, id)
+			footnotes.Used[id] = n
+			aid := slugifyHeading(id)
+			return fmt.Sprintf(`<sup id="fnref-%s"><a href="#fn-%s">[%d]</a></sup>`, aid, aid, n)
+		})
+	}
 	out = reBold.ReplaceAllString(out, `<strong>$1</strong>`)
 	out = reItalic.ReplaceAllString(out, `<em>$1</em>`)
-	out = reCode.ReplaceAllString(out, `<code>$1</code>`)
+	out = reStrike.ReplaceAllString(out, `<del>$1</del>`)
+	for i, code := range codeSpans {
+		token := fmt.Sprintf("{{CODE_SPAN_%d}}", i)
+		out = strings.ReplaceAll(out, token, code)
+	}
 	return out
+}
+
+func leadingSpaces(s string) int {
+	n := 0
+	for n < len(s) && s[n] == ' ' {
+		n++
+	}
+	return n
+}
+
+func parseHeading(trimmed string) (level int, text string, ok bool) {
+	if !strings.HasPrefix(trimmed, "#") {
+		return 0, "", false
+	}
+	level = 0
+	for level < len(trimmed) && trimmed[level] == '#' {
+		level++
+	}
+	if level == 0 || level > 6 {
+		return 0, "", false
+	}
+	text = strings.TrimSpace(trimmed[level:])
+	if text == "" {
+		return 0, "", false
+	}
+	return level, text, true
+}
+
+func isHorizontalRule(trimmed string) bool {
+	if len(trimmed) < 3 {
+		return false
+	}
+	ch := trimmed[0]
+	if ch != '-' && ch != '*' && ch != '_' {
+		return false
+	}
+	count := 0
+	for i := 0; i < len(trimmed); i++ {
+		c := trimmed[i]
+		if c == ' ' {
+			continue
+		}
+		if c != ch {
+			return false
+		}
+		count++
+	}
+	return count >= 3
+}
+
+func splitTableRow(line string) []string {
+	trimmed := strings.TrimSpace(line)
+	trimmed = strings.TrimPrefix(trimmed, "|")
+	trimmed = strings.TrimSuffix(trimmed, "|")
+	parts := strings.Split(trimmed, "|")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		out = append(out, strings.TrimSpace(p))
+	}
+	return out
+}
+
+func isTableSeparatorRow(line string) bool {
+	cells := splitTableRow(line)
+	if len(cells) == 0 {
+		return false
+	}
+	for _, c := range cells {
+		s := strings.TrimSpace(c)
+		s = strings.TrimPrefix(s, ":")
+		s = strings.TrimSuffix(s, ":")
+		if len(s) < 3 {
+			return false
+		}
+		for i := 0; i < len(s); i++ {
+			if s[i] != '-' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func parseTable(lines []string, start int) (markdownTable, int) {
+	if start+1 >= len(lines) {
+		return markdownTable{}, 0
+	}
+	headLine := strings.TrimSpace(lines[start])
+	sepLine := strings.TrimSpace(lines[start+1])
+	if !strings.Contains(headLine, "|") || !isTableSeparatorRow(sepLine) {
+		return markdownTable{}, 0
+	}
+	tbl := markdownTable{Header: splitTableRow(headLine)}
+	i := start + 2
+	for i < len(lines) {
+		l := strings.TrimSpace(lines[i])
+		if l == "" || !strings.Contains(l, "|") {
+			break
+		}
+		tbl.Rows = append(tbl.Rows, splitTableRow(l))
+		i++
+	}
+	return tbl, i - start
+}
+
+func renderTable(tbl markdownTable, footnotes *footnoteState) string {
+	var b strings.Builder
+	b.WriteString("<table>\n<thead><tr>")
+	for _, h := range tbl.Header {
+		b.WriteString("<th>" + formatInlineWithState(h, footnotes) + "</th>")
+	}
+	b.WriteString("</tr></thead>\n<tbody>\n")
+	for _, row := range tbl.Rows {
+		b.WriteString("<tr>")
+		for _, cell := range row {
+			b.WriteString("<td>" + formatInlineWithState(cell, footnotes) + "</td>")
+		}
+		b.WriteString("</tr>\n")
+	}
+	b.WriteString("</tbody>\n</table>\n")
+	return b.String()
+}
+
+func extractFootnoteDefs(lines []string) ([]string, map[string]string) {
+	body := make([]string, 0, len(lines))
+	defs := map[string]string{}
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
+		m := reFootnoteDef.FindStringSubmatch(strings.TrimSpace(line))
+		if len(m) < 3 {
+			body = append(body, line)
+			continue
+		}
+		id := strings.TrimSpace(m[1])
+		text := strings.TrimSpace(m[2])
+		j := i + 1
+		for j < len(lines) {
+			next := lines[j]
+			if strings.HasPrefix(next, "  ") || strings.HasPrefix(next, "\t") {
+				text += " " + strings.TrimSpace(next)
+				j++
+				continue
+			}
+			break
+		}
+		defs[id] = text
+		i = j - 1
+	}
+	return body, defs
+}
+
+func collectHeadings(lines []string) []headingItem {
+	out := make([]headingItem, 0)
+	used := map[string]int{}
+	inCode := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			inCode = !inCode
+			continue
+		}
+		if inCode {
+			continue
+		}
+		level, text, ok := parseHeading(trimmed)
+		if !ok {
+			continue
+		}
+		id := uniqueHeadingID(slugifyHeading(text), used)
+		out = append(out, headingItem{Level: level, ID: id, Text: text})
+	}
+	return out
+}
+
+func uniqueHeadingID(base string, used map[string]int) string {
+	if base == "" {
+		base = "section"
+	}
+	n := used[base]
+	used[base] = n + 1
+	if n == 0 {
+		return base
+	}
+	return fmt.Sprintf("%s-%d", base, n+1)
+}
+
+func slugifyHeading(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var b strings.Builder
+	lastDash := false
+	for _, r := range s {
+		isAlphaNum := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+		if isAlphaNum {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash && b.Len() > 0 {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if out == "" {
+		return "section"
+	}
+	return out
+}
+
+func renderTOC(headings []headingItem) string {
+	if len(headings) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(`<nav class="toc" style="font-variant-numeric: tabular-nums;">` + "\n")
+	b.WriteString(`<ol>` + "\n")
+
+	prevLevel := 1
+	first := true
+	for _, h := range headings {
+		lvl := h.Level
+		if lvl < 1 {
+			lvl = 1
+		}
+		if first {
+			first = false
+		} else {
+			if lvl > prevLevel {
+				for i := prevLevel; i < lvl; i++ {
+					b.WriteString("<ol>\n")
+				}
+			} else {
+				b.WriteString("</li>\n")
+				if lvl < prevLevel {
+					for i := lvl; i < prevLevel; i++ {
+						b.WriteString("</ol>\n")
+						if i+1 <= prevLevel-1 {
+							b.WriteString("</li>\n")
+						}
+					}
+				}
+			}
+		}
+		b.WriteString(`<li><a href="#` + h.ID + `">` + formatInline(h.Text) + `</a>`)
+		prevLevel = lvl
+	}
+	b.WriteString("</li>\n")
+	for prevLevel > 1 {
+		b.WriteString("</ol>\n</li>\n")
+		prevLevel--
+	}
+	b.WriteString(`</ol>` + "\n")
+	b.WriteString(`</nav>` + "\n")
+	return b.String()
 }
