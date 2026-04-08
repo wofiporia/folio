@@ -100,6 +100,7 @@ func main() {
 	}
 
 	count := 0
+	blocked := make(map[string]struct{}, len(privatePosts))
 	for _, p := range privatePosts {
 		postPath := filepath.Join(outDir, "post", p.Slug, "index.html")
 		plainHTML, err := os.ReadFile(postPath)
@@ -124,7 +125,12 @@ func main() {
 			os.Exit(1)
 		}
 
+		blocked[p.Slug] = struct{}{}
 		count++
+	}
+	if err := pruneSearchIndex(filepath.Join(outDir, "search-index.json"), blocked); err != nil {
+		writeResp(response{Error: fmt.Sprintf("prune search-index failed: %v", err)})
+		os.Exit(1)
 	}
 
 	writeResp(response{Message: fmt.Sprintf("private_posts: encrypted %d article(s)", count)})
@@ -267,6 +273,8 @@ func buildLockedPage(basePath string, p privatePost) string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
+  <meta name="turbo-visit-control" content="reload">
+  <meta name="turbo-cache-control" content="no-cache">
   <title>私密文章 · ` + title + `</title>
   <link rel="icon" type="image/png" href="` + faviconURL + `">
   <link rel="stylesheet" href="` + styleURL + `">
@@ -317,7 +325,7 @@ func buildLockedPage(basePath string, p privatePost) string {
         <button type="submit">解锁</button>
       </form>
       <div id="err" class="err"></div>
-      <p class="muted"><a href="` + homeURL + `">返回首页</a></p>
+      <p class="muted"><a href="` + homeURL + `" data-turbo="false">返回首页</a></p>
     </main>
   </div>
   <script>
@@ -376,6 +384,38 @@ func buildLockedPage(basePath string, p privatePost) string {
 </body>
 </html>`
 }
+
+func pruneSearchIndex(path string, blocked map[string]struct{}) error {
+	if len(blocked) == 0 {
+		return nil
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	var docs []map[string]any
+	if err := json.Unmarshal(b, &docs); err != nil {
+		return err
+	}
+	out := make([]map[string]any, 0, len(docs))
+	for _, d := range docs {
+		slug, _ := d["slug"].(string)
+		if _, deny := blocked[slug]; deny {
+			continue
+		}
+		out = append(out, d)
+	}
+	clean, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return err
+	}
+	clean = append(clean, '\n')
+	return os.WriteFile(path, clean, 0o644)
+}
+
 func configString(cfg map[string]any, key, fallback string) string {
 	if cfg == nil {
 		return fallback
