@@ -47,25 +47,51 @@ type SEO struct {
 }
 
 type AppConfig struct {
-	SiteTitle          string `json:"site_title"`
-	SiteDescription    string `json:"site_description"`
-	SiteURL            string `json:"site_url"`
-	AuthorName         string `json:"author_name"`
-	AuthorGitHub       string `json:"author_github"`
-	Theme              string `json:"theme"`
-	DefaultDescription string `json:"default_description"`
-	DefaultOGImage     string `json:"default_og_image"`
-	DefaultOGType      string `json:"default_og_type"`
-	CommentsProvider   string `json:"comments_provider"`
-	CommentsRepo       string `json:"comments_repo"`
-	CommentsRepoID     string `json:"comments_repo_id"`
-	CommentsCategory   string `json:"comments_category"`
-	CommentsCategoryID string `json:"comments_category_id"`
-	CommentsMapping    string `json:"comments_mapping"`
-	CommentsTheme      string `json:"comments_theme"`
-	CommentsLang       string `json:"comments_lang"`
-	CommentsLabel      string `json:"comments_label"`
-	CommentsIssueTerm  string `json:"comments_issue_term"`
+	SiteTitle          string        `json:"site_title"`
+	SiteDescription    string        `json:"site_description"`
+	SiteURL            string        `json:"site_url"`
+	AuthorName         string        `json:"author_name"`
+	AuthorGitHub       string        `json:"author_github"`
+	Theme              string        `json:"theme"`
+	DefaultDescription string        `json:"default_description"`
+	DefaultOGImage     string        `json:"default_og_image"`
+	DefaultOGType      string        `json:"default_og_type"`
+	CommentsProvider   string        `json:"comments_provider"`
+	CommentsRepo       string        `json:"comments_repo"`
+	CommentsRepoID     string        `json:"comments_repo_id"`
+	CommentsCategory   string        `json:"comments_category"`
+	CommentsCategoryID string        `json:"comments_category_id"`
+	CommentsMapping    string        `json:"comments_mapping"`
+	CommentsTheme      string        `json:"comments_theme"`
+	CommentsLang       string        `json:"comments_lang"`
+	CommentsLabel      string        `json:"comments_label"`
+	CommentsIssueTerm  string        `json:"comments_issue_term"`
+	Plugins            PluginConfigs `json:"plugins"`
+}
+
+type PluginConfigs []PluginConfig
+
+func (p *PluginConfigs) UnmarshalJSON(data []byte) error {
+	var names []string
+	if err := json.Unmarshal(data, &names); err == nil {
+		out := make([]PluginConfig, 0, len(names))
+		for _, name := range names {
+			name = strings.TrimSpace(name)
+			if name == "" {
+				continue
+			}
+			out = append(out, PluginConfig{Name: name})
+		}
+		*p = out
+		return nil
+	}
+
+	var configs []PluginConfig
+	if err := json.Unmarshal(data, &configs); err == nil {
+		*p = configs
+		return nil
+	}
+	return fmt.Errorf("plugins must be an array of names or plugin objects")
 }
 
 type TagStat struct {

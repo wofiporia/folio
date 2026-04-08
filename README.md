@@ -114,6 +114,7 @@ draft: false
 - 归档页：`/archives`
 - 搜索页：`/search`（前端读取 `search-index.json`）
 - SEO：`description`、Open Graph、`canonical`、`article:published_time`
+- 已启用 Turbo 导航（同源页面切换默认无整页刷新）
 
 ## 本地开发
 
@@ -130,6 +131,17 @@ go run .
 ```bash
 go run ./cmd/build -out dist -base-path /your-repo-name
 ```
+
+静态预览（推荐）：
+
+1. 预览 GitHub Pages 子路径（例如仓库名 `folio`）：
+
+```bash
+go run ./cmd/build -out .previewroot/folio -base-path /folio
+python -m http.server 9000 -d .previewroot
+```
+
+访问：`http://localhost:9000/folio/`
 
 可选参数：
 
@@ -155,6 +167,48 @@ go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 ```bash
 make test
 ```
+
+## 插件系统（实验性）
+
+Folio 支持通过外部进程插件扩展构建/内容流程，协议为 `stdin/stdout` 的 JSON。
+
+当前可用 Hook：
+
+- `after_posts_loaded`：文章加载完成后，可返回新文章列表。
+- `after_static_build`：静态构建完成后，可生成额外产物。
+- `before_page_render`：页面渲染前，可注入额外 head 片段（如脚本/样式）。
+
+插件目录约定（即插即用）：
+
+```text
+plugins/
+└── <name>/
+    ├── main.go
+    └── plugin.json
+```
+
+当 `plugin.json` 未显式配置 `command/args` 时，默认自动执行：
+
+```bash
+go run ./plugins/<name>
+```
+
+最简启用方式（只写插件名）：
+
+```jsonc
+{
+  "plugins": ["music_player"]
+}
+```
+
+内置插件：
+
+- `music_player`：页面悬浮音乐播放器。
+- `private_posts`：私密文章加密页面（详情页密码解锁）。
+
+详细配置、参数和示例请看：
+
+- [`posts/plugins-folio.md`](posts/plugins-folio.md)
 
 ## GitHub Pages Base Path
 

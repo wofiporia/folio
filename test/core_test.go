@@ -303,3 +303,40 @@ func TestRoutingHelpers(t *testing.T) {
 		t.Fatalf("StaticArchivesPageURL mismatch: %s", got)
 	}
 }
+
+func TestPluginManagerConstruction(t *testing.T) {
+	cfg := core.DefaultConfig()
+	if m := core.NewPluginManager(".", cfg); m != nil {
+		t.Fatalf("expected nil plugin manager for empty config")
+	}
+
+	cfg.Plugins = core.PluginConfigs{
+		{
+			Name:  "music_player",
+			Hooks: []string{"before_page_render"},
+		},
+	}
+	if m := core.NewPluginManager(".", cfg); m == nil {
+		t.Fatalf("expected non-nil plugin manager when plugins are configured")
+	}
+}
+
+func TestPluginNamesConfigParsing(t *testing.T) {
+	tmp := t.TempDir()
+	cfgPath := filepath.Join(tmp, "config.json")
+	mustWriteFile(t, cfgPath, `{
+  "site_title": "Folio",
+  "plugins": ["music_player"]
+}`)
+
+	cfg, err := core.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig error: %v", err)
+	}
+	if len(cfg.Plugins) != 1 {
+		t.Fatalf("expected 1 plugin, got %d", len(cfg.Plugins))
+	}
+	if cfg.Plugins[0].Name != "music_player" {
+		t.Fatalf("unexpected plugin names: %+v", cfg.Plugins)
+	}
+}
